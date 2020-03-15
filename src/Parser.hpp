@@ -219,6 +219,6 @@ namespace Parser {
 
 
         std::optional<ExpressionNode> parseExpression ();
-        std::optional<ExpressionNode> tryParseSingularExpression ();
+        Util::Result<ExpressionNode> tryParseSingularExpression ();
     };
 }

@@ -272,4 +272,35 @@ namespace Util {
         }
         return true;
     }
+
+    /// Note: doesn't support storing std::string
+    template<typename T>
+    struct Result {
+        std::variant<
+            T,
+            std::string // error message
+        > value;
+
+        Result (const char* error_message) : value(std::string(error_message)) {}
+        Result (std::string error_message) : value(error_message) {}
+        Result (T t_value) : value(t_value) {}
+
+        const T& get () const {
+            return std::get<T>(value);
+        }
+        T& get () {
+            return std::get<T>(value);
+        }
+        const std::string& getError () const {
+            return std::get<std::string>(value);
+        }
+
+        bool holdsError () const {
+            return std::holds_alternative<std::string>(value);
+        }
+
+        bool holds () const {
+            return std::holds_alternative<T>(value);
+        }
+    };
 }

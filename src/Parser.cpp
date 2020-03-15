@@ -357,8 +357,8 @@ namespace Parser {
 
         // TODO: We can totaly move parsing binary operators into it's own function :]
         // then just have it call this.... gotta be careful not to just loop forever.
-        std::optional<ExpressionNode> first = tryParseSingularExpression();
-        if (!first.has_value()) {
+        Util::Result<ExpressionNode> first = tryParseSingularExpression();
+        if (first.holdsError()) {
             throw std::runtime_error("Unknown token in what should be an expression: " + current.toString(""));
         }
 
@@ -381,20 +381,18 @@ namespace Parser {
         } else if (is(Token::Type::Minus)) {
             type = Token::Type::Minus;
         } else {
-            return first; // simple singular expression;
+            return first.get(); // simple singular expression;
         }
         advance();
 
-        std::optional<ExpressionNode> second = tryParseSingularExpression();
-        if (!second.has_value()) {
+        Util::Result<ExpressionNode> second = tryParseSingularExpression();
+        if (second.holdsError()) {
             throw std::runtime_error("Expected second expression after binary operator [" + Token::typeToString(type) + "]");
         }
 
         if (type == Token::Type::Plus) {
-            //return AddExpressionNode(first.value(), second.value());
-            return AddExpressionNode(first.value(), second.value());
+            return AddExpressionNode(first.get(), second.get());
         } else if (type == Token::Type::Minus) {
-            //return SubtractExpressionNode(first.value(), second.value());
             throw std::runtime_error("Unsupported subtract operation");
         } else {
             throw std::runtime_error("Expected expression.");
@@ -402,18 +400,20 @@ namespace Parser {
         // TODO: support remotely complex expressions.
     }
     // parse a singular expression item. [x]
-    std::optional<ExpressionNode> Parser::tryParseSingularExpression () {
+    Util::Result<ExpressionNode> Parser::tryParseSingularExpression () {
+        // This doesn't bother pushing or popping an index since it only modifies it if there's a result.
+
         // TODO: support -[literal] and +[literal]
         const Token& current = at();
 
         // literal identifier, so potentially a variable name
         if (is(Token::Type::Identifier)) {
             advance();
-            return LiteralIdentifierNode(current);
+            return ExpressionNode(LiteralIdentifierNode(current));
         } else if (current.isNumber()) { // literal number
             advance();
-            return LiteralNumberNode(current);
+            return ExpressionNode(LiteralNumberNode(current));
         }
-        return std::nullopt;
+        return "Unexpected token type. Expected identifier or number literal.";
     }
 }
