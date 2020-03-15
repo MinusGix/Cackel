@@ -48,6 +48,7 @@ namespace Parser {
 	};
 	std::string primordialTypeToString (PrimordialType type);
     size_t getPrimordialTypeSize (PrimordialType type);
+	std::optional<PrimordialType> stringToPrimordialType (const std::string& name);
 	struct PrimordialTypeNode {
 		PrimordialType type;
 		explicit PrimordialTypeNode (PrimordialType t) : type(t) {}
@@ -211,8 +212,6 @@ namespace Parser {
         std::optional<FunctionNode> parseFunction ();
 
         std::optional<TypeNode> parseType ();
-        // TODO: move this out of class
-        std::optional<PrimordialType> parsePrimordialType_helper (const std::string& name);
 
         std::optional<StatementNode> parseStatement ();
         std::optional<StatementNode> parseStatement_variableDeclaration ();

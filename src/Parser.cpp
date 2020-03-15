@@ -70,6 +70,39 @@ namespace Parser {
         }
     }
 
+    std::optional<PrimordialType> stringToPrimordialType (const std::string& name) {
+        if (name == "int") {
+            return PrimordialType::Int;
+        } else if (name == "uint") {
+            return PrimordialType::UInt;
+        } else if (name == "i8") {
+            return PrimordialType::Int8;
+        } else if (name == "u8") {
+            return PrimordialType::UInt8;
+        } else if (name == "i16") {
+            return PrimordialType::Int16;
+        } else if (name == "u16") {
+            return PrimordialType::UInt16;
+        } else if (name == "i32") {
+            return PrimordialType::Int32;
+        } else if (name == "u32") {
+            return PrimordialType::UInt32;
+        } else if (name == "i64") {
+            return PrimordialType::Int64;
+        } else if (name == "u64") {
+            return PrimordialType::UInt64;
+        } else if (name == "i128") {
+            return PrimordialType::Int128;
+        } else if (name == "u128") {
+            return PrimordialType::UInt128;
+        } else if (name == "f32") {
+            return PrimordialType::Float32;
+        } else if (name == "f64") {
+            return PrimordialType::Float64;
+        }
+        return std::nullopt;
+    }
+
     // ==== Nodes ====
 
     AddExpressionNode::AddExpressionNode (ExpressionNode t_left, ExpressionNode t_right) : left(new ExpressionNode(std::move(t_left))), right(new ExpressionNode(std::move(t_right))) {}
@@ -233,7 +266,7 @@ namespace Parser {
         const Token& name_token = expect(Token::Type::Identifier);
         const auto& name = name_token.getData<Token::IdentifierData>();
         std::optional<TypeNode> node;
-        std::optional<PrimordialType> primordial_type = parsePrimordialType_helper(name.data);
+        std::optional<PrimordialType> primordial_type = stringToPrimordialType(name.data);
         if (primordial_type.has_value()) {
             node.emplace(PrimordialTypeNode(primordial_type.value()));
         } else {
@@ -243,39 +276,6 @@ namespace Parser {
 
         slideIndice(node.has_value());
         return node;
-    }
-    std::optional<PrimordialType> Parser::parsePrimordialType_helper (const std::string& name) {
-        // TODO: check that numbers fit
-        if (name == "int") {
-            return PrimordialType::Int;
-        } else if (name == "uint") {
-            return PrimordialType::UInt;
-        } else if (name == "i8") {
-            return PrimordialType::Int8;
-        } else if (name == "u8") {
-            return PrimordialType::UInt8;
-        } else if (name == "i16") {
-            return PrimordialType::Int16;
-        } else if (name == "u16") {
-            return PrimordialType::UInt16;
-        } else if (name == "i32") {
-            return PrimordialType::Int32;
-        } else if (name == "u32") {
-            return PrimordialType::UInt32;
-        } else if (name == "i64") {
-            return PrimordialType::Int64;
-        } else if (name == "u64") {
-            return PrimordialType::UInt64;
-        } else if (name == "i128") {
-            return PrimordialType::Int128;
-        } else if (name == "u128") {
-            return PrimordialType::UInt128;
-        } else if (name == "f32") {
-            return PrimordialType::Float32;
-        } else if (name == "f64") {
-            return PrimordialType::Float64;
-        }
-        return std::nullopt;
     }
 
     std::optional<StatementNode> Parser::parseStatement () {
