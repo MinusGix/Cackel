@@ -1,0 +1,8 @@
+build/
+bin/
+.vscode/
+# ignore anything generated in test, like assembly files and llvm ir files
+test/*
+# keep around all .l files
+!test/*.l
+docs/ideas.txt

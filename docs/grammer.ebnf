@@ -1,0 +1,16 @@
+# Note that this file isn't truly bnf or ebnf, it's just named that to get syntax highlighting.
+# This is a easily outdated file, and a 'loose' representation of what current parsing is.. though is likely outdated at all times.
+function : "func" identifier "(" function_parameters? ")" "{" statement* "}"
+function_parameters = (identifier ":" type) "," function_parameters |
+    (identifier ":" type)
+
+statement = variable_statement | return_statement
+variable_statement = "let" identifier ":" type "=" expression ";"
+return_statement = "return" expression ";"
+
+expression = identifier | simple_number
+simple_number = simple_integer | simple_float
+
+arch_type = int | uint
+primordial_type = arch_type | i8 | u8 | i16 | u16 | i32 | u32 | i64 | u64 | i128 | u128
+type = primordial_type
