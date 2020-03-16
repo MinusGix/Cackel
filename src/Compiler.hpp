@@ -13,7 +13,7 @@
 #include <memory>
 #include <map>
 
-#include "util.hpp"
+#include "Util/util.hpp"
 #include "Parser.hpp"
 
 namespace Compiler {

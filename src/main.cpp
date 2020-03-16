@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-#include "util.hpp"
+#include "Util/util.hpp"
 
 #include "Lexer.hpp"
 

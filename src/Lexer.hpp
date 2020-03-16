@@ -5,7 +5,7 @@
 #include <string>
 #include <optional>
 
-#include "util.hpp"
+#include "Util/util.hpp"
 
 namespace Lexer {
 	struct Token {
