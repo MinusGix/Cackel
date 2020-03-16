@@ -11,7 +11,7 @@ echo Generating object file from llvm ir
 llc -filetype=obj $1.ll
 
 echo Linking files.
-ld.lld -pie --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 \
+ld -pie -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 \
     -o a.out \
     -z notext \
     ./start.o \
