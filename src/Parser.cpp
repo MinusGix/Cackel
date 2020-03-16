@@ -181,6 +181,7 @@ namespace Parser {
         return at(value);
     }
 
+    // TODO: it'd be good to simply return the root node here rather than forcing us to access the 'internal' state of this class
     void Parser::parse () {
         while (indexValid()) {
             if (is(Token::Type::Identifier)) {

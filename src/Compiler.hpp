@@ -34,7 +34,7 @@ namespace Compiler {
 
 		Value* logErrorValue (const char* str);
 
-		void compile ();
+		void compile (std::ostream& output);
 
 		Function* codegenFunctionPrototype (const RawIdentifierNode& identifier, const std::vector<FunctionParameterNode>& parameters, const TypeNode& return_type);
 

@@ -1,6 +1,8 @@
 #include "Compiler.hpp"
+#include "llvm_stdostream.hpp"
 
 #include <iostream>
+#include <ostream>
 
 namespace Compiler {
     AllocaInst* createEntryBlockStackAllocation (Function* function, Type* type, const std::string& name) {
@@ -14,7 +16,7 @@ namespace Compiler {
         modul = std::make_unique<Module>("Cackel", context);
     }
 
-    void Compiler::compile () {
+    void Compiler::compile (std::ostream& output) {
         for (const auto& r_node : nodes.nodes) {
             std::visit(overloaded {
                 [this] (const FunctionNode& node) {
@@ -23,7 +25,9 @@ namespace Compiler {
             }, r_node);
         }
 
-        modul->print(errs(), nullptr, false, false);
+        auto bridge = Util::LLVM::OStreamBridge(output);
+
+        modul->print(bridge, nullptr, false, false);
     }
 
     Function* Compiler::codegenFunctionPrototype (const RawIdentifierNode& identifier, const std::vector<FunctionParameterNode>& parameters, const TypeNode& return_type) {

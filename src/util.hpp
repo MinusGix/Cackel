@@ -3,12 +3,22 @@
 #include <variant>
 #include <string>
 #include <memory>
+#include <fstream>
 
 // TODO: move this into util and `using ..` it or something.
 template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
 namespace Util {
+    namespace File {
+        /// Reads an entire text file into memory.
+        static std::string readTextWhole (const std::string& filename) {
+            std::ifstream file(filename);
+	        // Read entire file into memory.
+	        return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        }
+    }
+
     enum class Base {
         Binary,
         Octal,
