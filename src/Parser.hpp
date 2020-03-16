@@ -111,11 +111,31 @@ namespace Parser {
 		}
 	};
     struct AddExpressionNode;
+	struct SubtractExpressionNode;
+	struct MultiplyExpressionNode;
+	struct UnaryPlusExpressionNode;
+	struct UnaryMinusExpressionNode;
 	using ExpressionNode = std::variant<
 		LiteralIdentifierNode,
 		LiteralNumberNode,
-		AddExpressionNode
+		AddExpressionNode,
+		SubtractExpressionNode,
+		MultiplyExpressionNode,
+		UnaryPlusExpressionNode,
+		UnaryMinusExpressionNode
 	>;
+	struct UnaryPlusExpressionNode : public BaseASTNode {
+		// non-null
+		Util::DeepUniquePtr<ExpressionNode> right;
+		explicit UnaryPlusExpressionNode (ExpressionNode t_right);
+		std::string toString (const std::string& indent) const;
+	};
+	struct UnaryMinusExpressionNode : public BaseASTNode {
+		// non-null
+		Util::DeepUniquePtr<ExpressionNode> right;
+		explicit UnaryMinusExpressionNode (ExpressionNode t_right);
+		std::string toString (const std::string& indent) const;
+	};
     struct AddExpressionNode : public BaseASTNode {
 		// non-null
 		Util::DeepUniquePtr<ExpressionNode> left;
@@ -123,6 +143,24 @@ namespace Parser {
 		Util::DeepUniquePtr<ExpressionNode> right;
 
 		explicit AddExpressionNode (ExpressionNode t_left, ExpressionNode t_right);
+		std::string toString (const std::string& indent) const;
+	};
+	struct SubtractExpressionNode : public BaseASTNode {
+		// non-null
+		Util::DeepUniquePtr<ExpressionNode> left;
+		// non-null
+		Util::DeepUniquePtr<ExpressionNode> right;
+
+		explicit SubtractExpressionNode (ExpressionNode t_left, ExpressionNode t_right);
+		std::string toString (const std::string& indent) const;
+	};
+	struct MultiplyExpressionNode : public BaseASTNode {
+		// non-null
+		Util::DeepUniquePtr<ExpressionNode> left;
+		// non-null
+		Util::DeepUniquePtr<ExpressionNode> right;
+
+		explicit MultiplyExpressionNode (ExpressionNode t_left, ExpressionNode t_right);
 		std::string toString (const std::string& indent) const;
 	};
 
@@ -217,8 +255,7 @@ namespace Parser {
         std::optional<StatementNode> parseStatement_variableDeclaration ();
         std::optional<StatementNode> parseStatement_return ();
 
-
         std::optional<ExpressionNode> parseExpression ();
-        Util::Result<ExpressionNode> tryParseSingularExpression ();
-    };
+		void checkExpression ();
+	};
 }

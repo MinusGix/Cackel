@@ -14,11 +14,6 @@ namespace Compiler {
         modul = std::make_unique<Module>("Cackel", context);
     }
 
-    Value* Compiler::logErrorValue (const char* str) {
-        std::cout << str << "\n";
-        return nullptr;
-    }
-
     void Compiler::compile () {
         for (const auto& r_node : nodes.nodes) {
             std::visit(overloaded {
@@ -124,10 +119,18 @@ namespace Compiler {
         std::cout << "DO NOTHING STATEMENT (EXPRESSION) THIS SHOULD DO SOMETHING!!\n";
     }
     void Compiler::codegenStatement (const VariableStatementNode& variable_decl, Function* function) {
+        // The type of our variable statement
         PrimordialTypeNode type_node = std::get<PrimordialTypeNode>(variable_decl.type);
+        // Create an allocation on the stack for the variable.
         AllocaInst* alloc_value = createEntryBlockStackAllocation(function, convertPrimordialType(type_node), variable_decl.name);
+        // Store it so that we may refer to it later.
         named_values[variable_decl.name] = alloc_value;
-        builder.CreateStore(codegenExpression(variable_decl.value), alloc_value);
+        // Generate the expression it's been set to.
+        Value* generated_expr = codegenExpression(variable_decl.value);
+        if (generated_expr == nullptr) {
+            throw std::runtime_error("[Internal] Failed in generating expression for variable statement: " + Util::toString(variable_decl, ""));
+        }
+        builder.CreateStore(generated_expr, alloc_value);
     }
     void Compiler::codegenStatement (const ReturnStatementNode& return_statement, Function*) {
         if (return_statement.value.has_value()) {
@@ -151,6 +154,18 @@ namespace Compiler {
             },
             [this] (const AddExpressionNode& add_node) -> Value* {
                 return this->builder.CreateAdd(this->codegenExpression(*add_node.left), this->codegenExpression(*add_node.right), "addtmp");
+            },
+            [this] (const SubtractExpressionNode& sub_node) -> Value* {
+                return this->builder.CreateSub(this->codegenExpression(*sub_node.left), this->codegenExpression(*sub_node.right), "subtmp");
+            },
+            [this] (const MultiplyExpressionNode& mul_node) -> Value* {
+                return this->builder.CreateMul(this->codegenExpression(*mul_node.left), this->codegenExpression(*mul_node.right), "mul_tmp");
+            },
+            [this] (const UnaryPlusExpressionNode& u_plus_node) -> Value* {
+                return this->codegenExpression(*u_plus_node.right);
+            },
+            [this] (const UnaryMinusExpressionNode& u_minus_node) -> Value* {
+                return this->builder.CreateNeg(this->codegenExpression(*u_minus_node.right), "negated");
             }
         }, expression);
     }

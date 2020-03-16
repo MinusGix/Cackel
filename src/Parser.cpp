@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <memory>
+#include <string>
+#include <stack>
 
 namespace Parser {
     // ==== Node Utilities ===
@@ -107,8 +109,24 @@ namespace Parser {
 
     AddExpressionNode::AddExpressionNode (ExpressionNode t_left, ExpressionNode t_right) : left(new ExpressionNode(std::move(t_left))), right(new ExpressionNode(std::move(t_right))) {}
     std::string AddExpressionNode::toString (const std::string& indent) const {
-        return "[" + Util::toString(left.get(), indent) + " + " + Util::toString(right.get(), indent) + "]";
+        return "(" + Util::toString(left.get(), indent) + " + " + Util::toString(right.get(), indent) + ")";
 	}
+    SubtractExpressionNode::SubtractExpressionNode (ExpressionNode t_left, ExpressionNode t_right) : left(new ExpressionNode(std::move(t_left))), right(new ExpressionNode(std::move(t_right))) {}
+    std::string SubtractExpressionNode::toString (const std::string& indent) const {
+        return "(" + Util::toString(left.get(), indent) + " - " + Util::toString(right.get(), indent) + ")";
+	}
+    MultiplyExpressionNode::MultiplyExpressionNode (ExpressionNode t_left, ExpressionNode t_right) : left(new ExpressionNode(std::move(t_left))), right(new ExpressionNode(std::move(t_right))) {}
+    std::string MultiplyExpressionNode::toString (const std::string& indent) const {
+        return "(" + Util::toString(left.get(), indent) + " * " + Util::toString(right.get(), indent) + ")";
+	}
+    UnaryMinusExpressionNode::UnaryMinusExpressionNode (ExpressionNode t_right) : right(new ExpressionNode(t_right)) {}
+	std::string UnaryMinusExpressionNode::toString (const std::string& indent) const {
+        return "-(" + Util::toString(right.get(), indent) + ")";
+    }
+    UnaryPlusExpressionNode::UnaryPlusExpressionNode (ExpressionNode t_right) : right(new ExpressionNode(t_right)) {}
+	std::string UnaryPlusExpressionNode::toString (const std::string& indent) const {
+        return "+(" + Util::toString(right.get(), indent) + ")";
+    }
 
     // ==== Parser Utilities ====
 
@@ -351,18 +369,188 @@ namespace Parser {
         return ReturnStatementNode(expression.value());
     }
 
+    /// Note: Due to the way the climbing algo works, the higher number the is the more it's precedence
+    /// rather than the usual "lower means earlier"
+    /// Note: Since the values are precedence levels, this means operators are equivalent...
+    /// So you should not use this enum to identify the operator
+    enum class OperatorPrecedence : int {
+        Addition = 1, // x + y
+        Subtraction = Addition, // x - y
 
-    std::optional<ExpressionNode> Parser::parseExpression () {
-        const Token& current = at();
+        Multiplication = 2, // x * y
+        Division = Multiplication, // x / y
+        Modulo = Multiplication, // x % y
 
-        // TODO: We can totaly move parsing binary operators into it's own function :]
-        // then just have it call this.... gotta be careful not to just loop forever.
-        Util::Result<ExpressionNode> first = tryParseSingularExpression();
-        if (first.holdsError()) {
-            throw std::runtime_error("Unknown token in what should be an expression: " + current.toString(""));
+        Exponentiation = 3, // **
+
+        UnaryPlus = 4, // +x
+        UnaryMinus = UnaryPlus, // -x
+        PlusPlus = UnaryPlus, // x++ ++x
+        MinusMinus = UnaryPlus, // x-- --x
+    };
+
+    enum class Associativity {
+        Left,
+        Right
+    };
+
+    static std::optional<ExpressionNode> parseExpressionExpr (Parser& parser, int min_prec);
+
+    static bool isBinaryOperator (const Token& token) {
+        return token.isOne(Token::Type::Plus, Token::Type::Minus, Token::Type::Star, Token::Type::Forwardslash, Token::Type::Percent);
+    }
+    static OperatorPrecedence getBinaryOperatorPrecedence (Token::Type type) {
+        switch (type) {
+            case Token::Type::Plus: return OperatorPrecedence::Addition;
+            case Token::Type::Minus: return OperatorPrecedence::Subtraction;
+            case Token::Type::Star: return OperatorPrecedence::Multiplication;
+            case Token::Type::Forwardslash: return OperatorPrecedence::Division;
+            case Token::Type::Percent: return OperatorPrecedence::Modulo;
+            case Token::Type::StarStar: return OperatorPrecedence::Exponentiation;
+            default:
+                throw std::runtime_error("Unknown binary operator from token type: " + Token::typeToString(type));
+        }
+    }
+
+    static Associativity getBinaryAssociativity (Token::Type type) {
+        switch (type) {
+            // Something like exponent might be right associative
+            case Token::Type::StarStar:
+                return Associativity::Right;
+            default:
+                return Associativity::Left;
+        }
+    }
+
+    static bool isUnaryOperator (const Token& token) {
+        return token.isOne(Token::Type::Plus, Token::Type::Minus);
+    }
+    static OperatorPrecedence getUnaryOperatorPrecedence (Token::Type type) {
+        if (type == Token::Type::Plus) {
+            return OperatorPrecedence::UnaryPlus;
+        } else if (type == Token::Type::Minus) {
+            return OperatorPrecedence::UnaryMinus;
+        } else {
+            throw std::runtime_error("Unknown unary operator from token: " + Token::typeToString(type));
+        }
+    }
+
+    static bool isLiteral (const Token& token) {
+        return token.is(Token::Type::Identifier) || token.isNumber();
+    }
+
+    /// Note: this simple creates the literal, it doesn not advacne the parser!
+    static ExpressionNode createLiteral (Parser&, const Token& token) {
+        if (token.is(Token::Type::Identifier)) {
+            return LiteralIdentifierNode(token);
+        } else if (token.isNumber()) {
+            return LiteralNumberNode(token);
+        } else {
+            throw std::runtime_error("Cannot make literal. Unknown token type: " + token.toString(""));
+        }
+    }
+
+    static ExpressionNode createUnaryNode (Parser&, Token::Type type, ExpressionNode right) {
+        if (type == Token::Type::Plus) {
+            return UnaryPlusExpressionNode(right);
+        } else if (type == Token::Type::Minus) {
+            return UnaryMinusExpressionNode(right);
+        } else {
+            throw std::runtime_error("[Internal] Failed in creating node for unary operator: " + Token::typeToString(type) + " for expression: " + Util::toString(right, ""));
+        }
+    }
+    static ExpressionNode createBinaryNode (Parser&, Token::Type type, ExpressionNode left, ExpressionNode right) {
+        if (type == Token::Type::Plus) {
+            return AddExpressionNode(left, right);
+        } else if (type == Token::Type::Minus) {
+            return SubtractExpressionNode(left, right);
+        } else if (type == Token::Type::Star) {
+            return MultiplyExpressionNode(left, right);
+        } else if (type == Token::Type::StarStar) {
+            throw std::runtime_error("Impl exponents");
+        } else {
+            throw std::runtime_error("[Internal] Failed in creating node for binary operator: " + Token::typeToString(type) + " for expressions: (" +
+                Util::toString(left, "") + ", " + Util::toString(right, "") + ")"
+            );
+        }
+    }
+
+    static std::optional<ExpressionNode> parseExpressionPart (Parser& parser) {
+        if (!parser.indexValid()) {
+            std::cout << "We're past our stay. There's no more parts since index is past the end\n";
+            return std::nullopt;
+        } else if (parser.is(Token::Type::LParen)) { // (expression)
+            parser.advance();
+            std::optional<ExpressionNode> expr = parseExpressionExpr(parser, 1);
+            if (!expr.has_value()) {
+                throw std::runtime_error("Expected expression inside parentheses");
+            }
+            parser.expect(Token::Type::RParen);
+            parser.advance();
+            return expr;
+        } else if (isUnaryOperator(parser.at())) {
+            const Token& op_token = parser.at();
+            OperatorPrecedence op = getUnaryOperatorPrecedence(op_token.type);
+            parser.advance();
+            std::optional<ExpressionNode> right = parseExpressionExpr(parser, static_cast<int>(op));
+            if (!right.has_value()) {
+                throw std::runtime_error("Expected expression after unary operator.");
+            }
+            return createUnaryNode(parser, op_token.type, right.value());
+        } else if (isBinaryOperator(parser.at())) {
+            throw std::runtime_error("Expected part while parsing expression but got binary operator: " + parser.at().toString(""));
+        } else if (isLiteral(parser.at())) {
+            ExpressionNode temp = createLiteral(parser, parser.at());
+            parser.advance();
+            return std::move(temp);
+        } else {
+            throw std::runtime_error("Unexpected token: " + parser.at().toString(""));
+        }
+    }
+
+    static std::optional<ExpressionNode> parseExpressionExpr (Parser& parser, int min_prec) {
+        std::optional<ExpressionNode> left = parseExpressionPart(parser);
+        if (!left.has_value()) {
+            std::cout << "Expected part but didn't get one.\n";
+            return std::nullopt;
         }
 
-        // TODO: multiply *
+        while (true) {
+            const Token& current_token = parser.at();
+            const Token::Type current_type = current_token.type;
+
+            if (!isBinaryOperator(current_token)) {
+                std::cout << "Breaking from loop (" + current_token.toString("") + ") was not a binary operator\n";
+                break;
+            }
+
+            if (static_cast<int>(getBinaryOperatorPrecedence(current_type)) < min_prec) {
+                break;
+            }
+
+            OperatorPrecedence op = getBinaryOperatorPrecedence(current_type);
+            Associativity assoc = getBinaryAssociativity(current_type);
+
+            int next_min_prec = static_cast<int>(op);
+            if (assoc == Associativity::Left) {
+                next_min_prec += 1;
+            }
+
+            parser.advance();
+            std::optional<ExpressionNode> right = parseExpressionExpr(parser, next_min_prec);
+            if (!right.has_value()) {
+                throw std::runtime_error("Expected expression on right side of binary operator.");
+            }
+            left = createBinaryNode(parser, current_type, left.value(), right.value());
+        }
+        return left;
+    }
+
+
+    std::optional<ExpressionNode> Parser::parseExpression () {
+        // Checks the expression for validity.
+        //checkExpression();
+
         // TODO: divide /
         // TODO: modulo %
         // TODO: bitwise-and &
@@ -374,46 +562,36 @@ namespace Parser {
         // TODO: logical-not !
         // TODO: integer division dunno
 
-        // [x] + [y], [x] - [y]
-        Token::Type type;
-        if (is(Token::Type::Plus)) {
-            type = Token::Type::Plus;
-        } else if (is(Token::Type::Minus)) {
-            type = Token::Type::Minus;
-        } else {
-            return first.get(); // simple singular expression;
-        }
-        advance();
-
-        Util::Result<ExpressionNode> second = tryParseSingularExpression();
-        if (second.holdsError()) {
-            throw std::runtime_error("Expected second expression after binary operator [" + Token::typeToString(type) + "]");
-        }
-
-        if (type == Token::Type::Plus) {
-            return AddExpressionNode(first.get(), second.get());
-        } else if (type == Token::Type::Minus) {
-            throw std::runtime_error("Unsupported subtract operation");
-        } else {
-            throw std::runtime_error("Expected expression.");
-        }
-        // TODO: support remotely complex expressions.
+        //return parseExpression_Root(*this);
+        return parseExpressionExpr(*this, 1);
     }
-    // parse a singular expression item. [x]
-    Util::Result<ExpressionNode> Parser::tryParseSingularExpression () {
-        // This doesn't bother pushing or popping an index since it only modifies it if there's a result.
 
-        // TODO: support -[literal] and +[literal]
-        const Token& current = at();
-
-        // literal identifier, so potentially a variable name
-        if (is(Token::Type::Identifier)) {
-            advance();
-            return ExpressionNode(LiteralIdentifierNode(current));
-        } else if (current.isNumber()) { // literal number
-            advance();
-            return ExpressionNode(LiteralNumberNode(current));
+    static void checkExpression_Part (Parser& parser) {
+        if (isLiteral(parser.at())) {
+            parser.advance();
+        } else if (parser.is(Token::Type::LParen)) {
+            parser.advance();
+            checkExpression_Part(parser);
+            parser.expect(Token::Type::RParen);
+        } else if (parser.at().isOne(Token::Type::Plus, Token::Type::Minus)) {
+            parser.advance();
+            checkExpression_Part(parser);
+        } else {
+            throw std::runtime_error("Unexpected token: " + parser.at().toString(""));
         }
-        return "Unexpected token type. Expected identifier or number literal.";
+    }
+
+    static void checkExpression_Expr (Parser& parser) {
+        checkExpression_Part(parser);
+        while (parser.at().isOne(Token::Type::Plus, Token::Type::Minus, Token::Type::Forwardslash)) {
+            parser.advance();
+            checkExpression_Part(parser);
+        }
+    }
+
+    void Parser::checkExpression () {
+        pushIndice();
+        checkExpression_Expr(*this);
+        popIndice();
     }
 }
