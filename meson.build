@@ -21,6 +21,7 @@ endif
 
 srcs = [
     'src/main.cpp',
+    'src/Util/util.cpp',
     'src/Lexer.cpp',
     'src/Parser.cpp',
     'src/Compiler.cpp'

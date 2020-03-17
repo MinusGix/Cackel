@@ -3,6 +3,7 @@
 #include <variant>
 #include <string>
 #include <memory>
+#include <vector>
 #include <fstream>
 
 // TODO: move this into util and `using ..` it or something.
@@ -12,11 +13,7 @@ template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 namespace Util {
     namespace File {
         /// Reads an entire text file into memory.
-        static std::string readTextWhole (const std::string& filename) {
-            std::ifstream file(filename);
-	        // Read entire file into memory.
-	        return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-        }
+        std::string readTextWhole (const std::string& filename);
     }
 
     enum class Base {
@@ -187,7 +184,7 @@ namespace Util {
     struct SourceLocation {
         size_t index;
         size_t line_index;
-        SourceLocation (size_t t_index, size_t t_line_index) : index(t_index), line_index(t_line_index) {}
+        constexpr SourceLocation (size_t t_index, size_t t_line_index) : index(t_index), line_index(t_line_index) {}
     };
 
     struct IndexStack {
@@ -195,80 +192,24 @@ namespace Util {
         std::vector<size_t> indices = {0};
 
         public:
-        const size_t& getIndex () const {
-            return indices.at(indices.size() - 1);
-        }
-        size_t& getIndex () {
-            return indices.at(indices.size() - 1);
-        }
+        const size_t& getIndex () const;
+        size_t& getIndex ();
 
-        size_t popIndice () {
-            const size_t value = getIndex();
-            if (indices.size() == 1) {
-                return value;
-            } else {
-                indices.pop_back();
-                return value;
-            }
-        }
+        size_t popIndice ();
 
-        void pushIndice () {
-            pushIndice(getIndex());
-        }
-        void pushIndice (size_t index) {
-            indices.push_back(index);
-        }
-        void transformIndice () {
-            if (indices.size() == 1) {
-                return;
-            }
-            indices.at(indices.size() - 2) = indices.at(indices.size() - 1);
-            popIndice();
-        }
+        void pushIndice ();
+        void pushIndice (size_t index);
+        void transformIndice ();
         /// Makes it slightly easier to to do a if(x){transformIndice();}else{popIndice();}
         /// so you can do slideIndice(x);
-        void slideIndice (bool overwrite) {
-            if (overwrite) {
-                transformIndice();
-            } else {
-                popIndice();
-            }
-        }
+        void slideIndice (bool overwrite);
 
-        void advance () {
-            getIndex()++;
-        }
+        void advance ();
     };
 
     /// Does simple checks for the base of the number
     /// Does not check for negative/positive number, so don't pass in a number starting with +/-
-    static Base getBaseSimple (const std::string& number) {
-        const size_t size = number.size();
-        size_t start = 0;
-        // TODO: check for + or -
-
-        if (number.find('.') != std::string::npos) {
-            return Base::Decimal; // We only parse floats as decimal
-        }
-
-        if (size >= (start + 2) && number.at(start) == '0') {
-            char next = number.at(start + 1);
-            if (next == 'b') {
-                return Base::Binary;
-            } else if (next == 'o') {
-                return Base::Octal;
-            } else if (next == 'd') {
-                return Base::Decimal;
-            } else if (next == 'x') {
-                return Base::Hexadecimal;
-            }
-
-            if (!isDecimalDigit(next)) {
-                throw std::runtime_error("getBase seemingly doesn't consider all properties properly");
-            }
-        }
-        return Base::Decimal;
-    }
+    Base getBaseSimple (const std::string& number);
 
     /// Only wants pointer type
     /// Checks list for nullptr
