@@ -17,16 +17,19 @@
 #include "Parser.hpp"
 
 namespace Compiler {
-	using namespace llvm;
 	using namespace Parser;
 
-    AllocaInst* createEntryBlockStackAllocation (Function* function, Type* type, const std::string& name);
+	using Value = llvm::Value;
+	using Function = llvm::Function;
+	using BasicBlock = llvm::BasicBlock;
+
+    llvm::AllocaInst* createEntryBlockStackAllocation (Function* function, llvm::Type* type, const std::string& name);
 
 	struct Compiler {
-		LLVMContext context;
-		IRBuilder<> builder;
-		std::unique_ptr<Module> modul;
-		std::map<std::string, AllocaInst*> named_values;
+		llvm::LLVMContext context;
+		llvm::IRBuilder<> builder;
+		std::unique_ptr<llvm::Module> modul;
+		std::map<std::string, llvm::AllocaInst*> named_values;
 
 		ParentASTNode nodes;
 
@@ -48,6 +51,6 @@ namespace Compiler {
 
 		Value* codegenExpression (const ExpressionNode& expression);
 
-		Type* convertPrimordialType (const PrimordialTypeNode& type_node);
+		llvm::Type* convertPrimordialType (const PrimordialTypeNode& type_node);
 	};
 }

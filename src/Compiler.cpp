@@ -6,8 +6,8 @@
 
 namespace Compiler {
     // ==== Utility ====
-    AllocaInst* createEntryBlockStackAllocation (Function* function, Type* type, const std::string& name) {
-        IRBuilder<> temp(&function->getEntryBlock(), function->getEntryBlock().begin());
+    llvm::AllocaInst* createEntryBlockStackAllocation (Function* function, llvm::Type* type, const std::string& name) {
+        llvm::IRBuilder<> temp(&function->getEntryBlock(), function->getEntryBlock().begin());
         return temp.CreateAlloca(type, nullptr, name);
     }
 
@@ -23,7 +23,7 @@ namespace Compiler {
     // ==== Compiler Class ====
 
     Compiler::Compiler (ParentASTNode t_nodes) : builder(context), nodes(t_nodes) {
-        modul = std::make_unique<Module>("Cackel", context);
+        modul = std::make_unique<llvm::Module>("Cackel", context);
     }
 
     void Compiler::compile (std::ostream& output) {
@@ -55,7 +55,7 @@ namespace Compiler {
     }
 
     Function* Compiler::codegenFunctionPrototype (const std::string& name, const std::vector<FunctionParameterNode>& parameters, const TypeNode& return_type) {
-        std::vector<Type*> gen_parameters(parameters.size());
+        std::vector<llvm::Type*> gen_parameters(parameters.size());
 
         for (size_t i = 0; i < parameters.size(); i++) {
             std::visit(overloaded {
@@ -70,8 +70,8 @@ namespace Compiler {
         assert(Util::isValidPointerList(gen_parameters.begin(), gen_parameters.end()));
 
         // TODO: this is bad
-        Type* return_type_ptr = convertPrimordialType(std::get<PrimordialTypeNode>(return_type));
-        FunctionType* function_type = FunctionType::get(
+        llvm::Type* return_type_ptr = convertPrimordialType(std::get<PrimordialTypeNode>(return_type));
+        llvm::FunctionType* function_type = llvm::FunctionType::get(
             return_type_ptr,
             gen_parameters,
             false
@@ -122,7 +122,7 @@ namespace Compiler {
         named_values.clear();
         for (auto& arg : function->args()) {
             // Create an alloca for the parameter
-            AllocaInst* alloc_value = createEntryBlockStackAllocation(function, arg.getType(), arg.getName());
+            llvm::AllocaInst* alloc_value = createEntryBlockStackAllocation(function, arg.getType(), arg.getName());
 
             builder.CreateStore(&arg, alloc_value);
 
@@ -135,7 +135,7 @@ namespace Compiler {
 
 
         //builder.CreateRet(ret_value);
-        verifyFunction(*function, &errs());
+        verifyFunction(*function, &llvm::errs());
 
         return function;
     }
@@ -156,7 +156,7 @@ namespace Compiler {
             [] (const LiteralIdentifierNode& n) { return n.name; }
         }, variable_decl.name);
         // Create an allocation on the stack for the variable.
-        AllocaInst* alloc_value = createEntryBlockStackAllocation(function, convertPrimordialType(type_node), variable_name);
+        llvm::AllocaInst* alloc_value = createEntryBlockStackAllocation(function, convertPrimordialType(type_node), variable_name);
         // Store it so that we may refer to it later.
         named_values[variable_name] = alloc_value;
         // Generate the expression it's been set to.
@@ -185,7 +185,7 @@ namespace Compiler {
                 const uint64_t value = std::stoi(number.literal_value);
                 size_t size = 64;
                 assert (size > 0);
-                return ConstantInt::get(this->context, APInt(size, value, false));
+                return llvm::ConstantInt::get(this->context, llvm::APInt(size, value, false));
             },
             [this] (const AddExpressionNode& add_node) -> Value* {
                 return this->builder.CreateAdd(this->codegenExpression(*add_node.left), this->codegenExpression(*add_node.right), "addtmp");
@@ -217,7 +217,9 @@ namespace Compiler {
         }, expression);
     }
 
-    Type* Compiler::convertPrimordialType (const PrimordialTypeNode& type_node) {
+    llvm::Type* Compiler::convertPrimordialType (const PrimordialTypeNode& type_node) {
+        using Type = llvm::Type;
+
         // Unsigned/Signed are collapsed into one.
         PrimordialType type = type_node.type;
         switch (type) {
