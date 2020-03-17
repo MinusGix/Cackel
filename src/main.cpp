@@ -78,12 +78,19 @@ int main (int argc, char* argv[]) {
 	std::string input_filename = argv[1];
 	std::cout << "Input Filename: " << input_filename;
 
-	std::unique_ptr<std::ostream> output_stream = nullptr;
+	// We do not use std::unique_ptr here as we may assign an ostream we do not own to it
+	// TODO: it might be better to make a util class for PotentiallyOwningUniquePtr (name needs work)
+	//       that requires knowledge of whether it owns the pointer (default yes to make it work with 
+	//       generic smart-pointer funcs)
+	std::ostream* output_stream = nullptr;
+	bool output_stream_owned = false;
 
 	if (argc >= 3) {
-		output_stream.reset(new std::ofstream(std::string(argv[2])));
+		output_stream = new std::ofstream(std::string(argv[2]));
+		output_stream_owned = true;
 	} else {
-		output_stream.reset(&std::cout);
+		output_stream = &std::cout;
+		output_stream_owned = false;
 		std::cout << "No output filename specified (ex: test.ll), defaulting to stdio.\n";
 	}
 
@@ -93,6 +100,13 @@ int main (int argc, char* argv[]) {
 	state.log_nodes = true;
 
 	state.performFullTrip();
+
+
+
+	// Deconstruction logic
+	if (output_stream_owned) {
+		delete output_stream;
+	}
 
 	return 0;
 }
