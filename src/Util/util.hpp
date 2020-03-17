@@ -142,6 +142,7 @@ namespace Util {
             } else {
                 reset();
             }
+            return *this;
         }
 
         typename std::add_lvalue_reference<element_type>::type operator* () const {
