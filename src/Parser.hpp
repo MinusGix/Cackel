@@ -93,6 +93,17 @@ namespace Parser {
 			return "LID[" + name + "]";
 		}
 	};
+
+	/// Things which identify another thing.
+	/// So normal identifiers identify variables/functions
+	/// This doesn't have much use now, but with theoretical weirdness, already having the type will be useful.
+	/// theoretically, there may a version which is evaluated at compile time
+	using IdentifyingNameNode = std::variant<
+		LiteralIdentifierNode
+	>;
+
+
+
 	// Absurdly simple, always positive since parsing of +/- is done later.
 	struct LiteralNumberNode : public BaseASTNode {
 		// Not yet parsed because we don't want to lose information.
@@ -165,14 +176,14 @@ namespace Parser {
 	};
 
 	struct VariableStatementNode {
-		std::string name;
+		IdentifyingNameNode name;
 		TypeNode type;
 		ExpressionNode value;
-		explicit VariableStatementNode (std::string t_name, TypeNode t_type, ExpressionNode t_value) : name(t_name), type(t_type), value(t_value) {}
-		explicit VariableStatementNode (std::string&& t_name, TypeNode t_type, ExpressionNode t_value) : name(t_name), type(t_type), value(t_value) {}
+		explicit VariableStatementNode (IdentifyingNameNode t_name, TypeNode t_type, ExpressionNode t_value) : name(t_name), type(t_type), value(t_value) {}
+		explicit VariableStatementNode (IdentifyingNameNode&& t_name, TypeNode t_type, ExpressionNode t_value) : name(t_name), type(t_type), value(t_value) {}
 
 		std::string toString (const std::string& indent) const {
-			return "VS[" + name + " = " + Util::toString(value, indent) + "]";
+			return "VS[" + Util::toString(name, indent) + " = " + Util::toString(value, indent) + "]";
 		}
 	};
 
@@ -214,15 +225,16 @@ namespace Parser {
 		}
 	};
 	struct FunctionNode : public BaseASTNode {
-		RawIdentifierNode identifier;
+		// TODO: hopefully at a later stage of parsing/checking/expanding the identity will just be a static string
+		IdentifyingNameNode identity;
 		std::vector<FunctionParameterNode> parameters;
 		TypeNode return_type;
 		std::vector<StatementNode> body;
-		explicit FunctionNode (RawIdentifierNode id, std::vector<FunctionParameterNode>&& p, TypeNode ret, std::vector<StatementNode>&& b) :
-			identifier(id), parameters(p), return_type(ret), body(b) {}
+		explicit FunctionNode (IdentifyingNameNode id, std::vector<FunctionParameterNode>&& p, TypeNode ret, std::vector<StatementNode>&& b) :
+			identity(id), parameters(p), return_type(ret), body(b) {}
 
 		std::string toString (const std::string& indent) const {
-			return "Function[" + identifier.toString(indent) + ",\n" +
+			return "Function[" + Util::toString(identity, indent) + ",\n" +
 				indent + " \t(" + Util::stringJoin(parameters, ", ", indent + "\t") + "),\n" +
 				indent + "\t->" + Util::toString(return_type, indent) + ", ""{\n" +
 				indent + "\t\t" + Util::stringJoin(body, ";\n" + indent + "\t\t", indent + "\t\t", true) + "\n" + indent + "\t}";
@@ -256,6 +268,9 @@ namespace Parser {
         std::optional<StatementNode> parseStatement_return ();
 
         std::optional<ExpressionNode> parseExpression ();
+
+		Util::Result<IdentifyingNameNode> tryParseIdentifyingName ();
+
 		void checkExpression ();
 	};
 }

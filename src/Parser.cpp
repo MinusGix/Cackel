@@ -201,8 +201,10 @@ namespace Parser {
         expectIdentifier("func");         // func
         advance();
 
-        const Token& identifier = expect(Token::Type::Identifier);   // name
-        advance();
+        Util::Result<IdentifyingNameNode> identity = tryParseIdentifyingName();
+        if (identity.holdsError()) {
+            throw std::runtime_error(identity.getError());
+        }
 
         TypeNode return_type = PrimordialTypeNode(PrimordialType::Void);
 
@@ -272,7 +274,7 @@ namespace Parser {
 
         //
         return FunctionNode(
-            RawIdentifierNode(identifier.getData<Token::IdentifierData>().data),
+            identity.get(),
             std::move(parameters),
             return_type,
             std::move(body)
@@ -316,8 +318,10 @@ namespace Parser {
         advance();
 
         // variable name
-        const Token& identifier = expect(Token::Type::Identifier);
-        advance();
+        Util::Result<IdentifyingNameNode> identity = tryParseIdentifyingName();
+        if (identity.holdsError()) {
+            throw std::runtime_error(identity.getError());
+        }
 
         // : before type information. We don't do any automatic types yet
         expect(Token::Type::Colon);
@@ -343,7 +347,7 @@ namespace Parser {
         advance();
 
         return VariableStatementNode(
-            identifier.getData<Token::IdentifierData>().data,
+            identity.get(),
             type.value(),
             expression.value()
         );
@@ -369,6 +373,8 @@ namespace Parser {
 
         return ReturnStatementNode(expression.value());
     }
+
+    // ==== Expression Parsing Internals ====
 
     /// Note: Due to the way the climbing algo works, the higher number the is the more it's precedence
     /// rather than the usual "lower means earlier"
@@ -547,6 +553,7 @@ namespace Parser {
         return left;
     }
 
+    // ==== Continuation of Parser Code ====
 
     std::optional<ExpressionNode> Parser::parseExpression () {
         // Checks the expression for validity.
@@ -565,6 +572,21 @@ namespace Parser {
 
         //return parseExpression_Root(*this);
         return parseExpressionExpr(*this, 1);
+    }
+
+    Util::Result<IdentifyingNameNode> Parser::tryParseIdentifyingName () {
+        pushIndice();
+
+        if (is(Token::Type::Identifier)) {
+            // We know we're trying to parse an identifying name, so rather than Raw we go for Literal identifier
+            auto temp = LiteralIdentifierNode(at());
+            advance();
+            transformIndice();
+            return IdentifyingNameNode(temp);
+        }
+
+        popIndice();
+        return "Expected identifying name (ex: an identifier), but got: " + at().toString("");
     }
 
     static void checkExpression_Part (Parser& parser) {

@@ -36,7 +36,7 @@ namespace Compiler {
 
 		void compile (std::ostream& output);
 
-		Function* codegenFunctionPrototype (const RawIdentifierNode& identifier, const std::vector<FunctionParameterNode>& parameters, const TypeNode& return_type);
+		Function* codegenFunctionPrototype (const std::string& identifier, const std::vector<FunctionParameterNode>& parameters, const TypeNode& return_type);
 
 		Function* codegenFunctionBody (const FunctionNode& node);
 

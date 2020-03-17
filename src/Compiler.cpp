@@ -30,7 +30,7 @@ namespace Compiler {
         modul->print(bridge, nullptr, false, false);
     }
 
-    Function* Compiler::codegenFunctionPrototype (const RawIdentifierNode& identifier, const std::vector<FunctionParameterNode>& parameters, const TypeNode& return_type) {
+    Function* Compiler::codegenFunctionPrototype (const std::string& name, const std::vector<FunctionParameterNode>& parameters, const TypeNode& return_type) {
         std::vector<Type*> gen_parameters(parameters.size());
 
         for (size_t i = 0; i < parameters.size(); i++) {
@@ -54,7 +54,7 @@ namespace Compiler {
         );
 
 
-        Function* function = Function::Create(function_type, Function::LinkageTypes::ExternalLinkage, identifier.name, modul.get());
+        Function* function = Function::Create(function_type, Function::LinkageTypes::ExternalLinkage, name, modul.get());
 
         unsigned int index = 0;
         for (auto& arg : function->args()) {
@@ -66,10 +66,14 @@ namespace Compiler {
     }
 
     Function* Compiler::codegenFunctionBody (const FunctionNode& node) {
-        Function* function = modul->getFunction(node.identifier.name);
+        const std::string function_name = std::visit(overloaded {
+            [] (const LiteralIdentifierNode& n) { return n.name; }
+        }, node.identity);
+
+        Function* function = modul->getFunction(function_name);
 
         if (function == nullptr) {
-            function = codegenFunctionPrototype(node.identifier, node.parameters, node.return_type);
+            function = codegenFunctionPrototype(function_name, node.parameters, node.return_type);
         }
 
         if (function == nullptr) {
@@ -125,10 +129,14 @@ namespace Compiler {
     void Compiler::codegenStatement (const VariableStatementNode& variable_decl, Function* function) {
         // The type of our variable statement
         PrimordialTypeNode type_node = std::get<PrimordialTypeNode>(variable_decl.type);
+
+        const std::string variable_name = std::visit(overloaded {
+            [] (const LiteralIdentifierNode& n) { return n.name; }
+        }, variable_decl.name);
         // Create an allocation on the stack for the variable.
-        AllocaInst* alloc_value = createEntryBlockStackAllocation(function, convertPrimordialType(type_node), variable_decl.name);
+        AllocaInst* alloc_value = createEntryBlockStackAllocation(function, convertPrimordialType(type_node), variable_name);
         // Store it so that we may refer to it later.
-        named_values[variable_decl.name] = alloc_value;
+        named_values[variable_name] = alloc_value;
         // Generate the expression it's been set to.
         Value* generated_expr = codegenExpression(variable_decl.value);
         if (generated_expr == nullptr) {
