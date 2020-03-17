@@ -330,8 +330,6 @@ namespace Lexer {
                 token = lexHexadecimalInteger(true);
             } else if (next == 'd') {
                 token = lexDecimalInteger(true);
-            } else if (!Util::isDecimalDigit(next)) {
-                throw std::runtime_error("Unknown specifier: " + std::to_string(chr));
             }
         }
         if (!token.has_value()) {
