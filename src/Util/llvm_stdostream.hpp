@@ -19,7 +19,7 @@ namespace Util::LLVM {
         }
 
         uint64_t current_pos () const override {
-            return output_stream.tellp();
+            return static_cast<uint64_t>(output_stream.tellp());
         }
     };
 }
