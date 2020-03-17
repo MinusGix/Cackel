@@ -11,6 +11,8 @@ namespace Parser {
 		switch (type) {
 			case PrimordialType::Void:
 				return "void";
+            case PrimordialType::Boolean:
+                return "bool";
 			case PrimordialType::Int:
 				return "int";
 			case PrimordialType::UInt:
@@ -46,6 +48,9 @@ namespace Parser {
             case PrimordialType::Void:
                 // TODO: i have no clue how well this works
                 return 0;
+            case PrimordialType::Boolean:
+                // While this is 1 it's likely to be a full byte
+                return 1;
             case PrimordialType::Int:
             case PrimordialType::UInt:
             // TODO: make this dependent on system
@@ -73,7 +78,11 @@ namespace Parser {
     }
 
     std::optional<PrimordialType> stringToPrimordialType (const std::string& name) {
-        if (name == "int") {
+        if (name == "void") {
+            return PrimordialType::Void;
+        } else if (name == "bool") {
+            return PrimordialType::Boolean;
+        } else if (name == "int") {
             return PrimordialType::Int;
         } else if (name == "uint") {
             return PrimordialType::UInt;
@@ -531,11 +540,23 @@ namespace Parser {
                 return function_call.get();
             }
 
+            // If it is a raw identifier then we check it for some special literals
+            if (parser.is(Token::Type::Identifier)) {
+                if (parser.isIdentifier("true")) {
+                    parser.advance();
+                    return LiteralBooleanNode(true);
+                } else if (parser.isIdentifier("false")) {
+                    parser.advance();
+                    return LiteralBooleanNode(false);
+                }
+            }
+
             // It wasn't a function call so we try parsing a normal identifier.
             Util::Result<IdentifyingNameNode> identity = parser.tryParseIdentifyingName();
             if (identity.holdsError()) {
                 throw std::runtime_error("[Internal] Original error: '" + identity.getError() + "', but this should not have happened as directly before it is checked for if it is an identifying name.");
             }
+
             return identity.get();
         } else if (token.isNumber()) {
             parser.advance();

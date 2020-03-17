@@ -152,9 +152,7 @@ namespace Compiler {
         // The type of our variable statement
         PrimordialTypeNode type_node = std::get<PrimordialTypeNode>(variable_decl.type);
 
-        const std::string variable_name = std::visit(overloaded {
-            [] (const LiteralIdentifierNode& n) { return n.name; }
-        }, variable_decl.name);
+        const std::string variable_name = getIdentityName(variable_decl.name);
         // Create an allocation on the stack for the variable.
         llvm::AllocaInst* alloc_value = createEntryBlockStackAllocation(function, convertPrimordialType(type_node), variable_name);
         // Store it so that we may refer to it later.
@@ -186,6 +184,9 @@ namespace Compiler {
                 size_t size = 64;
                 assert (size > 0);
                 return llvm::ConstantInt::get(this->context, llvm::APInt(size, value, false));
+            },
+            [this] (const LiteralBooleanNode& boolean) -> Value* {
+                return llvm::ConstantInt::get(this->context, llvm::APInt(1, boolean.value, false));
             },
             [this] (const AddExpressionNode& add_node) -> Value* {
                 return this->builder.CreateAdd(this->codegenExpression(*add_node.left), this->codegenExpression(*add_node.right), "addtmp");
@@ -226,6 +227,8 @@ namespace Compiler {
             case PrimordialType::Void:
                 // TODO: i have no clue how well this works
                 return Type::getVoidTy(context);
+            case PrimordialType::Boolean:
+                return Type::getInt1Ty(context);
             case PrimordialType::Int:
             case PrimordialType::UInt:
                 // TODO: make this dependent on system
@@ -250,5 +253,6 @@ namespace Compiler {
             case PrimordialType::Float64:
                 return Type::getDoubleTy(context);
         }
+        throw std::runtime_error("Failed to convert primordial type: " + primordialTypeToString(type));
     }
 };

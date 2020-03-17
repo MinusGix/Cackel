@@ -38,6 +38,7 @@ namespace Parser {
 	// Types
 	enum class PrimordialType {
 		Void,
+		Boolean,
 		Int, UInt,
 		Int8, UInt8,
 		Int16, UInt16,
@@ -121,6 +122,18 @@ namespace Parser {
 			return "LNum[" + literal_value + "]";
 		}
 	};
+	struct LiteralBooleanNode : public BaseASTNode {
+		bool value;
+
+		explicit LiteralBooleanNode (bool t_value) : value(t_value) {}
+		std::string toString (const std::string&) const {
+			if (value) {
+				return "B[true]";
+			} else {
+				return "B[false]";
+			}
+		}
+	};
     struct AddExpressionNode;
 	struct SubtractExpressionNode;
 	struct MultiplyExpressionNode;
@@ -131,6 +144,7 @@ namespace Parser {
 	using ExpressionNode = std::variant<
 		IdentifyingNameNode,
 		LiteralNumberNode,
+		LiteralBooleanNode,
 		AddExpressionNode,
 		SubtractExpressionNode,
 		MultiplyExpressionNode,
