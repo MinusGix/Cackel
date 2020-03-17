@@ -26,7 +26,7 @@ namespace Parser {
 		std::vector<ASTNode> nodes;
 		std::string toString (const std::string& orig_indent) const {
 			const std::string indent = orig_indent + "\t";
-			return "[\n" + indent + Util::stringJoin(nodes, ",\n", indent) + "\n]";
+			return "[\n" + indent + Util::stringJoin(nodes, ",\n" + indent, indent) + "\n]";
 		}
 	};
 	struct ParentASTNode : public BaseASTNode, ChildrenASTNode {
@@ -126,14 +126,18 @@ namespace Parser {
 	struct MultiplyExpressionNode;
 	struct UnaryPlusExpressionNode;
 	struct UnaryMinusExpressionNode;
+
+	struct FunctionCallNode;
 	using ExpressionNode = std::variant<
-		LiteralIdentifierNode,
+		IdentifyingNameNode,
 		LiteralNumberNode,
 		AddExpressionNode,
 		SubtractExpressionNode,
 		MultiplyExpressionNode,
 		UnaryPlusExpressionNode,
-		UnaryMinusExpressionNode
+		UnaryMinusExpressionNode,
+
+		FunctionCallNode
 	>;
 	struct UnaryPlusExpressionNode : public BaseASTNode {
 		// non-null
@@ -172,6 +176,19 @@ namespace Parser {
 		Util::DeepUniquePtr<ExpressionNode> right;
 
 		explicit MultiplyExpressionNode (ExpressionNode t_left, ExpressionNode t_right);
+		std::string toString (const std::string& indent) const;
+	};
+	struct FunctionCallNode : public BaseASTNode {
+		IdentifyingNameNode identity;
+		std::vector<ExpressionNode> arguments;
+		// I believe all of these are needed. They're here to make so that we can have the std vector of expressio nodes (despite it being an incomplete type)
+		explicit FunctionCallNode (IdentifyingNameNode id, std::vector<ExpressionNode> args);
+		FunctionCallNode (FunctionCallNode&& other);
+		FunctionCallNode (const FunctionCallNode& other);
+		FunctionCallNode& operator= (FunctionCallNode&& other) noexcept;
+		FunctionCallNode& operator= (const FunctionCallNode& other) noexcept;
+		~FunctionCallNode ();
+
 		std::string toString (const std::string& indent) const;
 	};
 
@@ -271,6 +288,6 @@ namespace Parser {
 
 		Util::Result<IdentifyingNameNode> tryParseIdentifyingName ();
 
-		void checkExpression ();
+		Util::Result<FunctionCallNode> tryParseFunctionCall ();
 	};
 }

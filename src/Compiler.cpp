@@ -5,9 +5,19 @@
 #include <ostream>
 
 namespace Compiler {
+    // ==== Utility ====
     AllocaInst* createEntryBlockStackAllocation (Function* function, Type* type, const std::string& name) {
         IRBuilder<> temp(&function->getEntryBlock(), function->getEntryBlock().begin());
         return temp.CreateAlloca(type, nullptr, name);
+    }
+
+    /// Note: this is a temp function for use while we still haven't evaluated identifying name nodes (since there isn't even anything to evaluate yet)
+    static std::string getIdentityName (const IdentifyingNameNode& ind) {
+        return std::visit(overloaded {
+            [] (const LiteralIdentifierNode& id) -> std::string {
+                return id.name;
+            }
+        }, ind);
     }
 
     // ==== Compiler Class ====
@@ -17,6 +27,7 @@ namespace Compiler {
     }
 
     void Compiler::compile (std::ostream& output) {
+        codegenGlobals();
         for (const auto& r_node : nodes.nodes) {
             std::visit(overloaded {
                 [this] (const FunctionNode& node) {
@@ -30,12 +41,25 @@ namespace Compiler {
         modul->print(bridge, nullptr, false, false);
     }
 
+    /// Generates 'global' data that should be able to referenced.
+    /// This (sadly) does it's own pass.
+    /// Generates all function prototypes (ignoring the function bodies)
+    void Compiler::codegenGlobals () {
+        for (const auto& r_node : nodes.nodes) {
+            std::visit(overloaded {
+                [this] (const FunctionNode& function) {
+                    this->codegenFunctionPrototype(getIdentityName(function.identity), function.parameters, function.return_type);
+                }
+            }, r_node);
+        }
+    }
+
     Function* Compiler::codegenFunctionPrototype (const std::string& name, const std::vector<FunctionParameterNode>& parameters, const TypeNode& return_type) {
         std::vector<Type*> gen_parameters(parameters.size());
 
         for (size_t i = 0; i < parameters.size(); i++) {
             std::visit(overloaded {
-                [&gen_parameters] (const UnknownTypeNode&) {
+                [] (const UnknownTypeNode&) {
                     throw std::runtime_error("GOT UNKNOWN TYPE NODE AS TYPE IN CODEGEN");
                 },
                 [&gen_parameters, i, this] (const PrimordialTypeNode& type) {
@@ -66,9 +90,7 @@ namespace Compiler {
     }
 
     Function* Compiler::codegenFunctionBody (const FunctionNode& node) {
-        const std::string function_name = std::visit(overloaded {
-            [] (const LiteralIdentifierNode& n) { return n.name; }
-        }, node.identity);
+        const std::string function_name = getIdentityName(node.identity);
 
         Function* function = modul->getFunction(function_name);
 
@@ -154,8 +176,9 @@ namespace Compiler {
 
     Value* Compiler::codegenExpression (const ExpressionNode& expression) {
         return std::visit(overloaded {
-            [this] (const LiteralIdentifierNode& id) -> Value* {
-                return this->builder.CreateLoad(this->named_values[id.name]);
+            [this] (const IdentifyingNameNode& ind) -> Value* {
+                std::string name = getIdentityName(ind);
+                return this->builder.CreateLoad(this->named_values[name]);
             },
             [this] (const LiteralNumberNode& number) -> Value* {
                 // TODO: this is bad
@@ -178,6 +201,18 @@ namespace Compiler {
             },
             [this] (const UnaryMinusExpressionNode& u_minus_node) -> Value* {
                 return this->builder.CreateNeg(this->codegenExpression(*u_minus_node.right), "negated");
+            },
+            [this] (const FunctionCallNode& func_call_node) -> Value* {
+                Function* function = modul->getFunction(getIdentityName(func_call_node.identity));
+                std::vector<Value*> arguments;
+                for (const ExpressionNode& expr : func_call_node.arguments) {
+                    arguments.push_back(this->codegenExpression(expr));
+                }
+                assert(Util::isValidPointerList(arguments.begin(), arguments.end()));
+
+                // Non-owner array (pointer to memory, which is the vector we created)
+                llvm::ArrayRef<Value*> llvm_arguments(arguments);
+                return this->builder.CreateCall(function, llvm_arguments);
             }
         }, expression);
     }

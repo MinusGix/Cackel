@@ -128,6 +128,17 @@ namespace Parser {
         return "+(" + Util::toString(right.get(), indent) + ")";
     }
 
+
+    FunctionCallNode::FunctionCallNode (IdentifyingNameNode id, std::vector<ExpressionNode> args) : identity(id), arguments(args) {}
+    FunctionCallNode::~FunctionCallNode () = default;
+    FunctionCallNode::FunctionCallNode (FunctionCallNode&& other) = default;
+	FunctionCallNode::FunctionCallNode (const FunctionCallNode& other) = default;
+    FunctionCallNode& FunctionCallNode::operator= (FunctionCallNode&& other) noexcept = default;
+	FunctionCallNode& FunctionCallNode::operator= (const FunctionCallNode& other) noexcept = default;
+    std::string FunctionCallNode::toString (const std::string& indent) const {
+        return "Func[" + Util::toString(identity, indent) + "(" + Util::mapJoin(arguments, [&indent] (auto&& v) { return Util::toString(v, indent); }, ", ") + ")]";
+    }
+
     // ==== Parser Utilities ====
 
     // ==== Parser ====
@@ -374,6 +385,55 @@ namespace Parser {
         return ReturnStatementNode(expression.value());
     }
 
+    Util::Result<FunctionCallNode> Parser::tryParseFunctionCall () {
+        pushIndice();
+
+        Util::Result<IdentifyingNameNode> identity = tryParseIdentifyingName();
+        if (identity.holdsError()) {
+            return identity.getError();
+        }
+
+        if (!is(Token::Type::LParen)) {
+            popIndice();
+            return "Expected ( after function name.";
+        }
+        // it is LParen
+        advance();
+
+        // func()
+        if (is(Token::Type::RParen)) {
+            advance();
+            transformIndice();
+            return FunctionCallNode(identity.get(), {});
+        }
+
+
+        // When the function call has parameters
+
+        std::vector<ExpressionNode> expressions;
+
+        while (true) {
+            std::optional<ExpressionNode> expr = parseExpression();
+            if (!expr.has_value()) {
+                popIndice();
+                return "Expected closing parentheses, or expression, received neither.";
+            }
+
+            expressions.push_back(expr.value());
+
+            if (is(Token::Type::RParen)) {
+                advance();
+                transformIndice();
+                return FunctionCallNode(identity.get(), expressions);
+            } else if (is(Token::Type::Comma)) {
+                advance();
+            } else {
+                popIndice();
+                return "Expected comma or closing parentheses after expression in function argument list.";
+            }
+        }
+    }
+
     // ==== Expression Parsing Internals ====
 
     /// Note: Due to the way the climbing algo works, the higher number the is the more it's precedence
@@ -442,15 +502,43 @@ namespace Parser {
         }
     }
 
-    static bool isLiteral (const Token& token) {
-        return token.is(Token::Type::Identifier) || token.isNumber();
+    // This is ew, but it should work
+    static bool isIdentifyingName (Parser& parser) {
+        parser.pushIndice();
+        Util::Result<IdentifyingNameNode> identity = parser.tryParseIdentifyingName();
+        parser.popIndice();
+
+        if (identity.holds()) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    static bool isLiteral (Parser& parser) {
+        // identifying name checks if the token(s) is an identifier
+        return parser.at().isNumber() || isIdentifyingName(parser);
     }
 
     /// Note: this simple creates the literal, it doesn not advacne the parser!
-    static ExpressionNode createLiteral (Parser&, const Token& token) {
-        if (token.is(Token::Type::Identifier)) {
-            return LiteralIdentifierNode(token);
+    static ExpressionNode createLiteral (Parser& parser) {
+        const Token& token = parser.at();
+        if (isIdentifyingName(parser)) {
+            // Try parsing a function call, but this will return an error message if it failed.
+            // This is fine, since we then try to check if it's just a normal identifier
+            Util::Result<FunctionCallNode> function_call = parser.tryParseFunctionCall();
+            if (function_call.holds()) {
+                return function_call.get();
+            }
+
+            // It wasn't a function call so we try parsing a normal identifier.
+            Util::Result<IdentifyingNameNode> identity = parser.tryParseIdentifyingName();
+            if (identity.holdsError()) {
+                throw std::runtime_error("[Internal] Original error: '" + identity.getError() + "', but this should not have happened as directly before it is checked for if it is an identifying name.");
+            }
+            return identity.get();
         } else if (token.isNumber()) {
+            parser.advance();
             return LiteralNumberNode(token);
         } else {
             throw std::runtime_error("Cannot make literal. Unknown token type: " + token.toString(""));
@@ -506,10 +594,8 @@ namespace Parser {
             return createUnaryNode(parser, op_token.type, right.value());
         } else if (isBinaryOperator(parser.at())) {
             throw std::runtime_error("Expected part while parsing expression but got binary operator: " + parser.at().toString(""));
-        } else if (isLiteral(parser.at())) {
-            ExpressionNode temp = createLiteral(parser, parser.at());
-            parser.advance();
-            return std::move(temp);
+        } else if (isLiteral(parser)) {
+            return createLiteral(parser);
         } else {
             throw std::runtime_error("Unexpected token: " + parser.at().toString(""));
         }
@@ -556,9 +642,6 @@ namespace Parser {
     // ==== Continuation of Parser Code ====
 
     std::optional<ExpressionNode> Parser::parseExpression () {
-        // Checks the expression for validity.
-        //checkExpression();
-
         // TODO: divide /
         // TODO: modulo %
         // TODO: bitwise-and &
@@ -587,34 +670,5 @@ namespace Parser {
 
         popIndice();
         return "Expected identifying name (ex: an identifier), but got: " + at().toString("");
-    }
-
-    static void checkExpression_Part (Parser& parser) {
-        if (isLiteral(parser.at())) {
-            parser.advance();
-        } else if (parser.is(Token::Type::LParen)) {
-            parser.advance();
-            checkExpression_Part(parser);
-            parser.expect(Token::Type::RParen);
-        } else if (parser.at().isOne(Token::Type::Plus, Token::Type::Minus)) {
-            parser.advance();
-            checkExpression_Part(parser);
-        } else {
-            throw std::runtime_error("Unexpected token: " + parser.at().toString(""));
-        }
-    }
-
-    static void checkExpression_Expr (Parser& parser) {
-        checkExpression_Part(parser);
-        while (parser.at().isOne(Token::Type::Plus, Token::Type::Minus, Token::Type::Forwardslash)) {
-            parser.advance();
-            checkExpression_Part(parser);
-        }
-    }
-
-    void Parser::checkExpression () {
-        pushIndice();
-        checkExpression_Expr(*this);
-        popIndice();
     }
 }
