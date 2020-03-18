@@ -1,5 +1,5 @@
 #include "Compiler.hpp"
-#include "Util/llvm_stdostream.hpp"
+#include "../Util/llvm_stdostream.hpp"
 
 #include <iostream>
 #include <ostream>

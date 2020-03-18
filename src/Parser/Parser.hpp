@@ -5,8 +5,8 @@
 #include <optional>
 #include <memory>
 
-#include "Util/util.hpp"
-#include "Lexer.hpp"
+#include "../Util/util.hpp"
+#include "../Lexer/Lexer.hpp"
 
 namespace Parser {
     using Token = Lexer::Token;

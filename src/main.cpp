@@ -6,11 +6,11 @@
 
 #include "Util/util.hpp"
 
-#include "Lexer.hpp"
+#include "Lexer/Lexer.hpp"
 
-#include "Parser.hpp"
+#include "Parser/Parser.hpp"
 
-#include "Compiler.hpp"
+#include "Compiler/Compiler.hpp"
 
 struct CompilerState {
 	/// The filename to read the data from.

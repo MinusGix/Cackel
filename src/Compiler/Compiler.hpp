@@ -13,8 +13,8 @@
 #include <memory>
 #include <map>
 
-#include "Util/util.hpp"
-#include "Parser.hpp"
+#include "../Util/util.hpp"
+#include "../Parser/Parser.hpp"
 
 namespace Compiler {
 	using namespace Parser;
