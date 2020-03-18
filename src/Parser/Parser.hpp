@@ -57,7 +57,7 @@ namespace Parser {
 			return "PT[" + primordialTypeToString(type) + "]";
 		}
 	};
-	struct UnknownTypeNode {
+	struct UnknownTypeNode : public BaseASTNode {
 		//Token value;
 		//explicit UnknownTypeNode (Token t) : value(t) {}
 		std::string toString (const std::string&) const {
@@ -206,7 +206,7 @@ namespace Parser {
 		std::string toString (const std::string& indent) const;
 	};
 
-	struct VariableStatementNode {
+	struct VariableStatementNode : public BaseASTNode{
 		IdentifyingNameNode name;
 		TypeNode type;
 		ExpressionNode value;
@@ -218,7 +218,7 @@ namespace Parser {
 		}
 	};
 
-	struct ReturnStatementNode {
+	struct ReturnStatementNode : public BaseASTNode {
 		std::optional<ExpressionNode> value;
 		// Void
 		explicit ReturnStatementNode () {}
