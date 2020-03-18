@@ -20,6 +20,12 @@ namespace Compiler {
         }, ind);
     }
 
+    static void codegenStatementVector (Compiler& compiler, const std::vector<StatementNode>& statements, Function* function) {
+        for (const StatementNode& statement : statements) {
+            compiler.codegenStatement(statement, function);
+        }
+    }
+
     // ==== Compiler Class ====
 
     Compiler::Compiler (ParentASTNode t_nodes) : builder(context), nodes(t_nodes) {
@@ -129,9 +135,7 @@ namespace Compiler {
             named_values[std::string(arg.getName())] = alloc_value;
         }
 
-        for (const auto& body_node : node.body) {
-            codegenStatement(body_node, function);
-        }
+        codegenStatementVector(*this, node.body, function);
 
 
         //builder.CreateRet(ret_value);
@@ -170,6 +174,62 @@ namespace Compiler {
         } else {
             builder.CreateRetVoid();
         }
+    }
+    void Compiler::codegenStatement (const IfStatementNode& if_statement, Function*) {
+        // Generate code for the condition
+        Value* root_condition = this->codegenExpression(if_statement.root.condition.value());
+        assert(root_condition != nullptr);
+        // TODO: this being a 64 bit int to compare against is
+        root_condition = builder.CreateICmpNE(root_condition, llvm::ConstantInt::get(this->context, llvm::APInt(64, 0, false)));
+
+        // This might be useless since we pass in function
+        Function* function = builder.GetInsertBlock()->getParent();
+        // The block for the code in the if-statement's body
+        BasicBlock* if_block = BasicBlock::Create(context, "if", function);
+        // block for potential code in the else-statement's body
+        BasicBlock* else_block = BasicBlock::Create(context, "else");
+        // block that the if-block and else-block will merge into once they're done
+        BasicBlock* merge_block = BasicBlock::Create(context, "ifcont");
+
+        BasicBlock* other_block = else_block;
+
+        bool if_has_return = if_statement.root.hasReturnStatement();
+        bool else_has_return = false;
+
+
+        if (!if_statement.hasElseStatement()) {
+            other_block = merge_block;
+        }
+
+        builder.CreateCondBr(root_condition, if_block, other_block);
+        builder.SetInsertPoint(if_block);
+
+        // Generate if block
+
+        codegenStatementVector(*this, if_statement.root.body, function);
+
+        // Create a break for next part of the code after else block
+        // TODO: only do this if it does not competely return
+        builder.CreateBr(merge_block);
+
+        // generate code for else block
+        if (if_statement.hasElseStatement()) {
+            const ConditionalPart& else_part = if_statement.getElseStatement();
+            function->getBasicBlockList().push_back(else_block);
+            builder.SetInsertPoint(else_block);
+            codegenStatementVector(*this, else_part.body, function);
+
+            else_has_return = else_part.hasReturnStatement();
+            // TODO: do this only if this does not completely return
+            // Generate branch to merging point if we're not returning from this
+            builder.CreateBr(merge_block);
+        }
+
+        // Generate next part of code
+        function->getBasicBlockList().push_back(merge_block);
+        builder.SetInsertPoint(merge_block);
+        // TODO: generate unreachable if all paths return
+        //builder.CreateUnreachable();
     }
 
     Value* Compiler::codegenExpression (const ExpressionNode& expression) {

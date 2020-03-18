@@ -237,11 +237,41 @@ namespace Parser {
 		}
 	};
 
+	struct IfStatementNode;
+
 	using StatementNode = std::variant<
 		ExpressionNode, // expressions can be by themselves
 		VariableStatementNode,
-        ReturnStatementNode
+        ReturnStatementNode,
+		IfStatementNode
 	>;
+
+	struct ConditionalPart {
+		std::optional<ExpressionNode> condition;
+		std::vector<StatementNode> body;
+		explicit ConditionalPart(std::optional<ExpressionNode> cond, std::vector<StatementNode> t_body);
+
+		std::string toString (const std::string& indent) const;
+
+		bool hasReturnStatement () const;
+	};
+
+	struct IfStatementNode : BaseASTNode {
+		ConditionalPart root;
+		/// When creating the if statement, it adds the else if/else nodes manually.
+		std::vector<ConditionalPart> parts;
+		explicit IfStatementNode (ConditionalPart t_root);
+		IfStatementNode (IfStatementNode&& other);
+		IfStatementNode (const IfStatementNode& other);
+		IfStatementNode& operator= (IfStatementNode&& other) noexcept;
+		IfStatementNode& operator= (const IfStatementNode& other) noexcept;
+		~IfStatementNode ();
+
+		std::string toString (const std::string& indent) const;
+
+		bool hasElseStatement () const;
+		const ConditionalPart& getElseStatement () const;
+	};
 
 
 
@@ -295,8 +325,10 @@ namespace Parser {
         std::optional<TypeNode> parseType ();
 
         std::optional<StatementNode> parseStatement ();
+		// TODO: make these functions return std::optional<TheirActualType>
         std::optional<StatementNode> parseStatement_variableDeclaration ();
         std::optional<StatementNode> parseStatement_return ();
+		std::optional<StatementNode> parseStatement_if ();
 
         std::optional<ExpressionNode> parseExpression ();
 

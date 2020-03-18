@@ -148,6 +148,52 @@ namespace Parser {
         return "Func[" + Util::toString(identity, indent) + "(" + Util::mapJoin(arguments, [&indent] (auto&& v) { return Util::toString(v, indent); }, ", ") + ")]";
     }
 
+
+    ConditionalPart::ConditionalPart(std::optional<ExpressionNode> cond, std::vector<StatementNode> t_body) : condition(cond), body(t_body) {}
+    std::string ConditionalPart::toString (const std::string& indent) const {
+        std::string result;
+        if (condition.has_value()) {
+            result = "?If[" + Util::toString(condition.value(), indent) + "]";
+        } else {
+            result = "Else";
+        }
+        return result + " {\n" + indent + "\t" + Util::stringJoin(body, ";\n" + indent + "\t", indent + "\t") + ";\n" + indent + "}";
+    }
+    bool ConditionalPart::hasReturnStatement () const {
+        for (const StatementNode& statement : body) {
+            if (std::holds_alternative<ReturnStatementNode>(statement)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    IfStatementNode::IfStatementNode (ConditionalPart t_root) : root(t_root) {}
+	IfStatementNode::IfStatementNode (IfStatementNode&& other) = default;
+	IfStatementNode::IfStatementNode (const IfStatementNode& other) = default;
+	IfStatementNode& IfStatementNode::operator= (IfStatementNode&& other) noexcept = default;
+	IfStatementNode& IfStatementNode::operator= (const IfStatementNode& other) noexcept = default;
+	IfStatementNode::~IfStatementNode () = default;
+
+	std::string IfStatementNode::toString (const std::string& indent) const {
+        // TODO: specialize for root condition part to say "if" and make it otherwise say elseif
+        return root.toString(indent) + " " + Util::mapJoin(parts, [&indent] (auto&& v) { return v.toString(indent); }, " ");
+    }
+
+    bool IfStatementNode::hasElseStatement () const {
+        if (parts.size() > 0) {
+            // Check if the last entry doesn't have a condition
+            return !getElseStatement().condition.has_value();
+        }
+        return false;
+    }
+    /// Returns the if statement (assuming it's at end of list and that it exists.)
+    /// Check hasElseStatement to verify that you can call this
+    const ConditionalPart& IfStatementNode::getElseStatement () const {
+        return parts.at(parts.size() - 1);
+    }
+
+
     // ==== Parser Utilities ====
 
     // ==== Parser ====
@@ -328,6 +374,8 @@ namespace Parser {
             statement = parseStatement_variableDeclaration();
         } else if (isIdentifier("return")) {
             statement = parseStatement_return();
+        } else if (isIdentifier("if")) {
+            statement = parseStatement_if();
         }
 
         slideIndice(statement.has_value());
@@ -376,8 +424,6 @@ namespace Parser {
         expectIdentifier("return");
         advance();
 
-        std::cout << "parse return statement.\n";
-
         if (is(Token::Type::Semicolon)) { // return;
             advance();
             return ReturnStatementNode();
@@ -392,6 +438,65 @@ namespace Parser {
         advance();
 
         return ReturnStatementNode(expression.value());
+    }
+
+    /// Note: does not consume the identifier, assumes it's already been consumed.
+    static ConditionalPart parseIfPart (Parser& parser, bool should_have_conditional) {
+        std::optional<ExpressionNode> condition;
+        if (should_have_conditional) {
+            parser.expect(Token::Type::LParen);
+            parser.advance();
+
+            if (parser.is(Token::Type::RParen)) {
+                throw std::runtime_error("Expected condition in conditial statement, but got empty condition.");
+            }
+
+            condition = parser.parseExpression();
+            if (!condition.has_value()) {
+                throw std::runtime_error("Expected condition with conditional statement.");
+            }
+
+            parser.expect(Token::Type::RParen);
+            parser.advance();
+        }
+
+        parser.expect(Token::Type::LBracket);
+        parser.advance();
+
+        std::vector<StatementNode> body;
+        while (true) {
+            std::optional<StatementNode> statement = parser.parseStatement();
+            if (!statement.has_value()) {
+                break;
+            }
+            body.push_back(statement.value());
+        }
+
+        parser.expect(Token::Type::RBracket);
+        parser.advance();
+
+        return ConditionalPart(condition, body);
+    }
+    std::optional<StatementNode> Parser::parseStatement_if () {
+        expectIdentifier("if");
+        advance();
+
+        IfStatementNode if_statement(parseIfPart(*this, true));
+
+        // parse else if and else
+        while (true) {
+            if (isIdentifier("elif")) {
+                advance();
+                if_statement.parts.push_back(parseIfPart(*this, true));
+            } else if (isIdentifier("else")) {
+                advance();
+                if_statement.parts.push_back(parseIfPart(*this, false));
+                break; // else statement is the last.
+            } else {
+                break;
+            }
+        }
+        return if_statement;
     }
 
     Util::Result<FunctionCallNode> Parser::tryParseFunctionCall () {

@@ -48,6 +48,7 @@ namespace Compiler {
 		void codegenStatement (const ExpressionNode& expression, Function* function);
 		void codegenStatement (const VariableStatementNode& variable_decl, Function* function);
 		void codegenStatement (const ReturnStatementNode& return_statement, Function* function);
+		void codegenStatement (const IfStatementNode& if_statement, Function*);
 
 		Value* codegenExpression (const ExpressionNode& expression);
 
