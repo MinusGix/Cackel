@@ -4,6 +4,8 @@
 #include <iostream>
 #include <ostream>
 
+#include <llvm/Support/Casting.h>
+
 namespace Compiler {
     // ==== Utility ====
     llvm::AllocaInst* createEntryBlockStackAllocation (Function* function, llvm::Type* type, const std::string& name) {
@@ -12,34 +14,33 @@ namespace Compiler {
     }
 
     /// Note: this is a temp function for use while we still haven't evaluated identifying name nodes (since there isn't even anything to evaluate yet)
-    static std::string getIdentityName (const IdentifyingNameNode& ind) {
-        return std::visit(overloaded {
-            [] (const LiteralIdentifierNode& id) -> std::string {
-                return id.name;
-            }
-        }, ind);
+    // TODO: should accept generic identity node type
+    static std::string getIdentityName (const std::unique_ptr<BaseASTNode>& ind) {
+        if (auto lit = llvm::dyn_cast<LiteralIdentifierNode>(ind.get())) {
+            return lit->name;
+        } else {
+            throw std::runtime_error("Failed to get identity name: " + ind->toString(""));
+        }
     }
 
-    static void codegenStatementVector (Compiler& compiler, const std::vector<StatementNode>& statements, Function* function) {
-        for (const StatementNode& statement : statements) {
-            compiler.codegenStatement(statement, function);
+    static void codegenStatementVector (Compiler& compiler, std::vector<std::unique_ptr<StatementASTNode>>&& statements, Function* function) {
+        for (std::unique_ptr<StatementASTNode>& statement : statements) {
+            compiler.codegenStatement(std::move(statement), function);
         }
     }
 
     // ==== Compiler Class ====
 
-    Compiler::Compiler (ParentASTNode t_nodes) : builder(context), nodes(t_nodes) {
+    Compiler::Compiler (ParentASTNode&& t_nodes) : builder(context), nodes(std::move(t_nodes)) {
         modul = std::make_unique<llvm::Module>("Cackel", context);
     }
 
     void Compiler::compile (std::ostream& output) {
         codegenGlobals();
-        for (const auto& r_node : nodes.nodes) {
-            std::visit(overloaded {
-                [this] (const FunctionNode& node) {
-                    this->codegenFunctionBody(node);
-                }
-            }, r_node);
+        for (std::unique_ptr<DeclASTNode>& r_node : nodes.nodes) {
+            if (auto func_node = llvm::unique_dyn_cast<FunctionNode>(r_node)) {
+                codegenFunctionBody(std::move(func_node));
+            }
         }
 
         auto bridge = Util::LLVM::OStreamBridge(output);
@@ -52,31 +53,27 @@ namespace Compiler {
     /// Generates all function prototypes (ignoring the function bodies)
     void Compiler::codegenGlobals () {
         for (const auto& r_node : nodes.nodes) {
-            std::visit(overloaded {
-                [this] (const FunctionNode& function) {
-                    this->codegenFunctionPrototype(getIdentityName(function.identity), function.parameters, function.return_type);
-                }
-            }, r_node);
+            if (auto func = llvm::dyn_cast<FunctionNode>(r_node.get())) {
+                codegenFunctionPrototype(getIdentityName(func->identity), func->parameters, func->return_type);
+            }
         }
     }
 
-    Function* Compiler::codegenFunctionPrototype (const std::string& name, const std::vector<FunctionParameterNode>& parameters, const TypeNode& return_type) {
-        std::vector<llvm::Type*> gen_parameters(parameters.size());
+    Function* Compiler::codegenFunctionPrototype (const std::string& name, const std::vector<std::unique_ptr<FunctionParameterInfo>>& parameters, const std::unique_ptr<TypeNode>& return_type) {
+        /// size() = parameters.size()
+        std::vector<llvm::Type*> gen_parameters;
 
-        for (size_t i = 0; i < parameters.size(); i++) {
-            std::visit(overloaded {
-                [] (const UnknownTypeNode&) {
-                    throw std::runtime_error("GOT UNKNOWN TYPE NODE AS TYPE IN CODEGEN");
-                },
-                [&gen_parameters, i, this] (const PrimordialTypeNode& type) {
-                    gen_parameters.at(i) = this->convertPrimordialType(type);
-                }
-            }, parameters[i].type);
+        for (const std::unique_ptr<FunctionParameterInfo>& parameter : parameters) {
+            if (const PrimordialTypeNode* prim_type = llvm::dyn_cast<PrimordialTypeNode>(parameter->type.get())) {
+                gen_parameters.push_back(convertPrimordialType(prim_type->type));
+            } else {
+                throw std::runtime_error("Got unknown type node in codegen for function prototype.: " + parameter->toString(""));
+            }
         }
         assert(Util::isValidPointerList(gen_parameters.begin(), gen_parameters.end()));
 
         // TODO: this is bad
-        llvm::Type* return_type_ptr = convertPrimordialType(std::get<PrimordialTypeNode>(return_type));
+        llvm::Type* return_type_ptr = convertPrimordialType(llvm::cast<PrimordialTypeNode>(return_type.get())->type);
         llvm::FunctionType* function_type = llvm::FunctionType::get(
             return_type_ptr,
             gen_parameters,
@@ -88,20 +85,20 @@ namespace Compiler {
 
         unsigned int index = 0;
         for (auto& arg : function->args()) {
-            arg.setName(parameters.at(index).name);
+            arg.setName(parameters.at(index)->name);
             index++;
         }
 
         return function;
     }
 
-    Function* Compiler::codegenFunctionBody (const FunctionNode& node) {
-        const std::string function_name = getIdentityName(node.identity);
+    Function* Compiler::codegenFunctionBody (std::unique_ptr<FunctionNode>&& node) {
+        const std::string function_name = getIdentityName(node->identity);
 
         Function* function = modul->getFunction(function_name);
 
         if (function == nullptr) {
-            function = codegenFunctionPrototype(function_name, node.parameters, node.return_type);
+            function = codegenFunctionPrototype(function_name, node->parameters, node->return_type);
         }
 
         if (function == nullptr) {
@@ -135,7 +132,7 @@ namespace Compiler {
             named_values[std::string(arg.getName())] = alloc_value;
         }
 
-        codegenStatementVector(*this, node.body, function);
+        codegenStatementVector(*this, std::move(node->body), function);
 
 
         //builder.CreateRet(ret_value);
@@ -144,40 +141,43 @@ namespace Compiler {
         return function;
     }
 
-    void Compiler::codegenStatement (const StatementNode& statement, Function* function) {
-        std::visit([this, function] (auto&& x) {
-            this->codegenStatement(x, function);
-        }, statement);
+    void Compiler::codegenStatement (std::unique_ptr<StatementASTNode>&& statement, Function* function) {
+        if (auto var = llvm::unique_dyn_cast<VariableStatementNode>(statement)) {
+            return codegenStatement(std::move(var), function);
+        } else if (auto ret = llvm::unique_dyn_cast<ReturnStatementNode>(statement)) {
+            return codegenStatement(std::move(ret), function);
+        } else if (auto if_statement = llvm::unique_dyn_cast<IfStatementNode>(statement)) {
+            return codegenStatement(std::move(if_statement), function);
+        } else {
+            throw std::runtime_error("Unknown statement node: " + statement->toString(""));
+        }
     }
-    void Compiler::codegenStatement (const ExpressionNode&, Function*) {
-        std::cout << "DO NOTHING STATEMENT (EXPRESSION) THIS SHOULD DO SOMETHING!!\n";
-    }
-    void Compiler::codegenStatement (const VariableStatementNode& variable_decl, Function* function) {
+    void Compiler::codegenStatement (std::unique_ptr<VariableStatementNode>&& variable_decl, Function* function) {
         // The type of our variable statement
-        PrimordialTypeNode type_node = std::get<PrimordialTypeNode>(variable_decl.type);
+        PrimordialTypeNode* type_node = llvm::cast<PrimordialTypeNode>(variable_decl->type.get());
 
-        const std::string variable_name = getIdentityName(variable_decl.name);
+        const std::string variable_name = getIdentityName(variable_decl->identity);
         // Create an allocation on the stack for the variable.
-        llvm::AllocaInst* alloc_value = createEntryBlockStackAllocation(function, convertPrimordialType(type_node), variable_name);
+        llvm::AllocaInst* alloc_value = createEntryBlockStackAllocation(function, convertPrimordialType(type_node->type), variable_name);
         // Store it so that we may refer to it later.
         named_values[variable_name] = alloc_value;
         // Generate the expression it's been set to.
-        Value* generated_expr = codegenExpression(variable_decl.value);
+        Value* generated_expr = codegenExpression(std::move(variable_decl->value));
         if (generated_expr == nullptr) {
             throw std::runtime_error("[Internal] Failed in generating expression for variable statement: " + Util::toString(variable_decl, ""));
         }
         builder.CreateStore(generated_expr, alloc_value);
     }
-    void Compiler::codegenStatement (const ReturnStatementNode& return_statement, Function*) {
-        if (return_statement.value.has_value()) {
-            builder.CreateRet(codegenExpression(return_statement.value.value()));
+    void Compiler::codegenStatement (std::unique_ptr<ReturnStatementNode>&& return_statement, Function*) {
+        if (return_statement->value != nullptr) {
+            builder.CreateRet(codegenExpression(std::move(return_statement->value)));
         } else {
             builder.CreateRetVoid();
         }
     }
-    void Compiler::codegenStatement (const IfStatementNode& if_statement, Function*) {
+    void Compiler::codegenStatement (std::unique_ptr<IfStatementNode>&& if_statement, Function*) {
         // Generate code for the condition
-        Value* root_condition = this->codegenExpression(if_statement.root.condition.value());
+        Value* root_condition = this->codegenExpression(std::move(if_statement->root->condition));
         assert(root_condition != nullptr);
         // TODO: this being a 64 bit int to compare against is
         root_condition = builder.CreateICmpNE(root_condition, llvm::ConstantInt::get(this->context, llvm::APInt(64, 0, false)));
@@ -193,11 +193,11 @@ namespace Compiler {
 
         BasicBlock* other_block = else_block;
 
-        bool if_has_return = if_statement.root.hasReturnStatement();
-        bool else_has_return = false;
+        //bool if_has_return = if_statement->root->hasReturnStatement();
+        //bool else_has_return = false;
 
 
-        if (!if_statement.hasElseStatement()) {
+        if (!if_statement->hasElseStatement()) {
             other_block = merge_block;
         }
 
@@ -206,20 +206,21 @@ namespace Compiler {
 
         // Generate if block
 
-        codegenStatementVector(*this, if_statement.root.body, function);
+        codegenStatementVector(*this, std::move(if_statement->root->body), function);
 
         // Create a break for next part of the code after else block
         // TODO: only do this if it does not competely return
         builder.CreateBr(merge_block);
 
         // generate code for else block
-        if (if_statement.hasElseStatement()) {
-            const ConditionalPart& else_part = if_statement.getElseStatement();
+        if (if_statement->hasElseStatement()) {
+            std::unique_ptr<ConditionalPart>& else_part = if_statement->getElseStatement();
+            //else_has_return = else_part->hasReturnStatement();
+
             function->getBasicBlockList().push_back(else_block);
             builder.SetInsertPoint(else_block);
-            codegenStatementVector(*this, else_part.body, function);
+            codegenStatementVector(*this, std::move(else_part->body), function);
 
-            else_has_return = else_part.hasReturnStatement();
             // TODO: do this only if this does not completely return
             // Generate branch to merging point if we're not returning from this
             builder.CreateBr(merge_block);
@@ -232,57 +233,48 @@ namespace Compiler {
         //builder.CreateUnreachable();
     }
 
-    Value* Compiler::codegenExpression (const ExpressionNode& expression) {
-        return std::visit(overloaded {
-            [this] (const IdentifyingNameNode& ind) -> Value* {
-                std::string name = getIdentityName(ind);
-                return this->builder.CreateLoad(this->named_values[name]);
-            },
-            [this] (const LiteralNumberNode& number) -> Value* {
-                // TODO: this is bad
-                const uint64_t value = std::stoi(number.literal_value);
-                size_t size = 64;
-                assert (size > 0);
-                return llvm::ConstantInt::get(this->context, llvm::APInt(size, value, false));
-            },
-            [this] (const LiteralBooleanNode& boolean) -> Value* {
-                return llvm::ConstantInt::get(this->context, llvm::APInt(1, boolean.value, false));
-            },
-            [this] (const AddExpressionNode& add_node) -> Value* {
-                return this->builder.CreateAdd(this->codegenExpression(*add_node.left), this->codegenExpression(*add_node.right), "addtmp");
-            },
-            [this] (const SubtractExpressionNode& sub_node) -> Value* {
-                return this->builder.CreateSub(this->codegenExpression(*sub_node.left), this->codegenExpression(*sub_node.right), "subtmp");
-            },
-            [this] (const MultiplyExpressionNode& mul_node) -> Value* {
-                return this->builder.CreateMul(this->codegenExpression(*mul_node.left), this->codegenExpression(*mul_node.right), "mul_tmp");
-            },
-            [this] (const UnaryPlusExpressionNode& u_plus_node) -> Value* {
-                return this->codegenExpression(*u_plus_node.right);
-            },
-            [this] (const UnaryMinusExpressionNode& u_minus_node) -> Value* {
-                return this->builder.CreateNeg(this->codegenExpression(*u_minus_node.right), "negated");
-            },
-            [this] (const FunctionCallNode& func_call_node) -> Value* {
-                Function* function = modul->getFunction(getIdentityName(func_call_node.identity));
-                std::vector<Value*> arguments;
-                for (const ExpressionNode& expr : func_call_node.arguments) {
-                    arguments.push_back(this->codegenExpression(expr));
-                }
-                assert(Util::isValidPointerList(arguments.begin(), arguments.end()));
-
-                // Non-owner array (pointer to memory, which is the vector we created)
-                llvm::ArrayRef<Value*> llvm_arguments(arguments);
-                return this->builder.CreateCall(function, llvm_arguments);
+    Value* Compiler::codegenExpression (std::unique_ptr<BaseASTNode>&& expr) {
+        if (auto ind = llvm::unique_dyn_cast<LiteralIdentifierNode>(expr)) {
+            return this->builder.CreateLoad(this->named_values.at(ind->name));
+        } else if (auto num = llvm::unique_dyn_cast<LiteralNumberNode>(expr)) {
+            const uint64_t value = std::stoi(num->value);
+            size_t size = 64;
+            assert(size > 0);
+            return llvm::ConstantInt::get(context, llvm::APInt(size, value, false));
+        } else if (auto boolean = llvm::unique_dyn_cast<LiteralBooleanNode>(expr)) {
+            return llvm::ConstantInt::get(context, llvm::APInt(1, boolean->value, false));
+        } else if (auto add = llvm::unique_dyn_cast<AddExpressionNode>(expr)) {
+            return builder.CreateAdd(codegenExpression(std::move(add->left)), codegenExpression(std::move(add->right)), "addtmp");
+        } else if (auto sub = llvm::unique_dyn_cast<SubtractExpressionNode>(expr)) {
+            return builder.CreateSub(codegenExpression(std::move(sub->left)), codegenExpression(std::move(sub->right)), "subtmp");
+        } else if (auto mult = llvm::unique_dyn_cast<MultiplyExpressionNode>(expr)) {
+            return builder.CreateMul(codegenExpression(std::move(mult->left)), codegenExpression(std::move(mult->right)), "multmp");
+        } else if (auto plus = llvm::unique_dyn_cast<UnaryPlusExpressionNode>(expr)) {
+            // Does nothing since +thing will not change it's sign.
+            return codegenExpression(std::move(plus->right));
+        } else if (auto minus = llvm::unique_dyn_cast<UnaryMinusExpressionNode>(expr)) {
+            return builder.CreateNeg(codegenExpression(std::move(minus->right)), "negated");
+        } else if (auto func_call = llvm::unique_dyn_cast<FunctionCallNode>(expr)) {
+            Function* function = modul->getFunction(getIdentityName(func_call->identity));
+            assert(function != nullptr);
+            std::vector<Value*> arguments;
+            for (std::unique_ptr<BaseASTNode>& argument : func_call->arguments) {
+                arguments.push_back(codegenExpression(std::move(argument)));
             }
-        }, expression);
+            assert(Util::isValidPointerList(arguments.begin(), arguments.end()));
+
+            // Non-owner array (pointer to memory, which is the vector we created)
+            llvm::ArrayRef<Value*> llvm_arguments(arguments);
+            return builder.CreateCall(function, llvm_arguments);
+        } else {
+            throw std::runtime_error("Unhandled node type managed to get to compile time: " + expr->toString(""));
+        }
     }
 
-    llvm::Type* Compiler::convertPrimordialType (const PrimordialTypeNode& type_node) {
+    llvm::Type* Compiler::convertPrimordialType (PrimordialType type) {
         using Type = llvm::Type;
 
         // Unsigned/Signed are collapsed into one.
-        PrimordialType type = type_node.type;
         switch (type) {
             case PrimordialType::Void:
                 // TODO: i have no clue how well this works

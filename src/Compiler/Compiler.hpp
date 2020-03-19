@@ -30,28 +30,27 @@ namespace Compiler {
 		llvm::IRBuilder<> builder;
 		std::unique_ptr<llvm::Module> modul;
 		std::map<std::string, llvm::AllocaInst*> named_values;
-
+		// This is ours now, so we do whatever to it.
 		ParentASTNode nodes;
 
-		explicit Compiler (ParentASTNode t_nodes);
+		explicit Compiler (ParentASTNode&& t_nodes);
 
 		Value* logErrorValue (const char* str);
 
 		void compile (std::ostream& output);
 		void codegenGlobals ();
 
-		Function* codegenFunctionPrototype (const std::string& identifier, const std::vector<FunctionParameterNode>& parameters, const TypeNode& return_type);
+		Function* codegenFunctionPrototype (const std::string& name, const std::vector<std::unique_ptr<FunctionParameterInfo>>& parameters, const std::unique_ptr<TypeNode>& return_type);
 
-		Function* codegenFunctionBody (const FunctionNode& node);
+		Function* codegenFunctionBody (std::unique_ptr<FunctionNode>&& func_node);
 
-		void codegenStatement (const StatementNode& statement, Function* function);
-		void codegenStatement (const ExpressionNode& expression, Function* function);
-		void codegenStatement (const VariableStatementNode& variable_decl, Function* function);
-		void codegenStatement (const ReturnStatementNode& return_statement, Function* function);
-		void codegenStatement (const IfStatementNode& if_statement, Function*);
+		void codegenStatement (std::unique_ptr<StatementASTNode>&& statement, Function* function);
+		void codegenStatement (std::unique_ptr<VariableStatementNode>&& variable_decl, Function* function);
+		void codegenStatement (std::unique_ptr<ReturnStatementNode>&& return_statement, Function* function);
+		void codegenStatement (std::unique_ptr<IfStatementNode>&& if_statement, Function*);
 
-		Value* codegenExpression (const ExpressionNode& expression);
+		Value* codegenExpression (std::unique_ptr<BaseASTNode>&& expr);
 
-		llvm::Type* convertPrimordialType (const PrimordialTypeNode& type_node);
+		llvm::Type* convertPrimordialType (PrimordialType type);
 	};
 }

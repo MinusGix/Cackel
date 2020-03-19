@@ -43,11 +43,11 @@ struct CompilerState {
 	Parser::ParentASTNode parse (std::vector<Lexer::Token>&& tokens) {
 		Parser::Parser parser(std::move(tokens));
 		parser.parse();
-		return parser.nodes;
+		return std::move(parser.nodes);
 	}
 
-	void compile (const Parser::ParentASTNode& nodes, std::ostream& output) {
-		Compiler::Compiler compiler(nodes);
+	void compile (Parser::ParentASTNode&& nodes, std::ostream& output) {
+		Compiler::Compiler compiler(std::move(nodes));
 		compiler.compile(output);
 	}
 
@@ -65,7 +65,7 @@ struct CompilerState {
 			std::cout << nodes.toString("  ") << "\n";
 		}
 
-		compile(nodes, output_stream);
+		compile(std::move(nodes), output_stream);
 	}
 };
 

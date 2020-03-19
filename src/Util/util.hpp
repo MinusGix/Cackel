@@ -71,11 +71,19 @@ namespace Util {
     template<class T>
     constexpr bool is_variant_v = is_variant<T>::value;
 
+    /// Note: doesn't support custom deleters.
+    template<class T>
+    struct is_unique_ptr : std::false_type {};
+    template<typename T>
+    struct is_unique_ptr<std::unique_ptr<T>> : std::true_type {};
+    template<class T>
+    constexpr bool is_unique_ptr_v = is_unique_ptr<T>::value;
+
     // TODO: it'd be nice to automatically support std::unique_ptr<Type>
     template<class T>
-    std::string toString(T t, const std::string& indent) {
-        if constexpr(std::is_pointer_v<T>) {
-            return toString(*t, indent);
+    std::string toString(const T& t, const std::string& indent) {
+        if constexpr(std::is_pointer_v<T> || is_unique_ptr_v<T>) {
+            return t->toString(indent);
         } else if constexpr(is_variant_v<T>) {
             return std::visit([&indent](auto&& v){ return toString(v, indent); }, t);
         } else {
@@ -235,7 +243,10 @@ namespace Util {
 
         Result (const char* error_message) : value(std::string(error_message)) {}
         Result (std::string error_message) : value(error_message) {}
-        Result (T t_value) : value(t_value) {}
+        Result (T&& t_value) : value(std::move(t_value)) {}
+        // This is ew
+        template<typename U>
+        Result (std::unique_ptr<U>&& t_value) : value(std::move(t_value)) {}
 
         const T& get () const {
             return std::get<T>(value);

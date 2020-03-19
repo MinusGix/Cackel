@@ -116,94 +116,16 @@ namespace Parser {
 
     // ==== Nodes ====
 
-    AddExpressionNode::AddExpressionNode (ExpressionNode t_left, ExpressionNode t_right) : left(new ExpressionNode(std::move(t_left))), right(new ExpressionNode(std::move(t_right))) {}
-    std::string AddExpressionNode::toString (const std::string& indent) const {
-        return "(" + Util::toString(left.get(), indent) + " + " + Util::toString(right.get(), indent) + ")";
-	}
-    SubtractExpressionNode::SubtractExpressionNode (ExpressionNode t_left, ExpressionNode t_right) : left(new ExpressionNode(std::move(t_left))), right(new ExpressionNode(std::move(t_right))) {}
-    std::string SubtractExpressionNode::toString (const std::string& indent) const {
-        return "(" + Util::toString(left.get(), indent) + " - " + Util::toString(right.get(), indent) + ")";
-	}
-    MultiplyExpressionNode::MultiplyExpressionNode (ExpressionNode t_left, ExpressionNode t_right) : left(new ExpressionNode(std::move(t_left))), right(new ExpressionNode(std::move(t_right))) {}
-    std::string MultiplyExpressionNode::toString (const std::string& indent) const {
-        return "(" + Util::toString(left.get(), indent) + " * " + Util::toString(right.get(), indent) + ")";
-	}
-    UnaryMinusExpressionNode::UnaryMinusExpressionNode (ExpressionNode t_right) : right(new ExpressionNode(t_right)) {}
-	std::string UnaryMinusExpressionNode::toString (const std::string& indent) const {
-        return "-(" + Util::toString(right.get(), indent) + ")";
-    }
-    UnaryPlusExpressionNode::UnaryPlusExpressionNode (ExpressionNode t_right) : right(new ExpressionNode(t_right)) {}
-	std::string UnaryPlusExpressionNode::toString (const std::string& indent) const {
-        return "+(" + Util::toString(right.get(), indent) + ")";
-    }
-
-
-    FunctionCallNode::FunctionCallNode (IdentifyingNameNode id, std::vector<ExpressionNode> args) : identity(id), arguments(args) {}
-    FunctionCallNode::~FunctionCallNode () = default;
-    FunctionCallNode::FunctionCallNode (FunctionCallNode&& other) = default;
-	FunctionCallNode::FunctionCallNode (const FunctionCallNode& other) = default;
-    FunctionCallNode& FunctionCallNode::operator= (FunctionCallNode&& other) noexcept = default;
-	FunctionCallNode& FunctionCallNode::operator= (const FunctionCallNode& other) noexcept = default;
-    std::string FunctionCallNode::toString (const std::string& indent) const {
-        return "Func[" + Util::toString(identity, indent) + "(" + Util::mapJoin(arguments, [&indent] (auto&& v) { return Util::toString(v, indent); }, ", ") + ")]";
-    }
-
-
-    ConditionalPart::ConditionalPart(std::optional<ExpressionNode> cond, std::vector<StatementNode> t_body) : condition(cond), body(t_body) {}
-    std::string ConditionalPart::toString (const std::string& indent) const {
-        std::string result;
-        if (condition.has_value()) {
-            result = "?If[" + Util::toString(condition.value(), indent) + "]";
-        } else {
-            result = "Else";
-        }
-        return result + " {\n" + indent + "\t" + Util::stringJoin(body, ";\n" + indent + "\t", indent + "\t") + ";\n" + indent + "}";
-    }
-    bool ConditionalPart::hasReturnStatement () const {
-        for (const StatementNode& statement : body) {
-            if (std::holds_alternative<ReturnStatementNode>(statement)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    IfStatementNode::IfStatementNode (ConditionalPart t_root) : root(t_root) {}
-	IfStatementNode::IfStatementNode (IfStatementNode&& other) = default;
-	IfStatementNode::IfStatementNode (const IfStatementNode& other) = default;
-	IfStatementNode& IfStatementNode::operator= (IfStatementNode&& other) noexcept = default;
-	IfStatementNode& IfStatementNode::operator= (const IfStatementNode& other) noexcept = default;
-	IfStatementNode::~IfStatementNode () = default;
-
-	std::string IfStatementNode::toString (const std::string& indent) const {
-        // TODO: specialize for root condition part to say "if" and make it otherwise say elseif
-        return root.toString(indent) + " " + Util::mapJoin(parts, [&indent] (auto&& v) { return v.toString(indent); }, " ");
-    }
-
-    bool IfStatementNode::hasElseStatement () const {
-        if (parts.size() > 0) {
-            // Check if the last entry doesn't have a condition
-            return !getElseStatement().condition.has_value();
-        }
-        return false;
-    }
-    /// Returns the if statement (assuming it's at end of list and that it exists.)
-    /// Check hasElseStatement to verify that you can call this
-    const ConditionalPart& IfStatementNode::getElseStatement () const {
-        return parts.at(parts.size() - 1);
-    }
-
-
     // ==== Parser Utilities ====
 
     // ==== Parser ====
 
-    Parser::Parser (std::vector<Token>&& t_tokens) : tokens(t_tokens) {}
+    Parser::Parser (std::vector<Lexer::Token>&& t_tokens) : tokens(t_tokens) {}
 
-    const Token& Parser::at (std::optional<size_t> value) const {
+    const Lexer::Token& Parser::at (std::optional<size_t> value) const {
         return tokens.at(value.value_or(getIndex()));
     }
-    Token& Parser::at (std::optional<size_t> value) {
+    Lexer::Token& Parser::at (std::optional<size_t> value) {
         return tokens.at(value.value_or(getIndex()));
     }
     bool Parser::indexValid () const {
@@ -212,7 +134,7 @@ namespace Parser {
     bool Parser::indexValid (size_t value) const {
         return value < tokens.size();
     }
-    bool Parser::is (Token::Type type, std::optional<size_t> t_value) const {
+    bool Parser::is (Lexer::Token::Type type, std::optional<size_t> t_value) const {
         const size_t value = t_value.value_or(getIndex());
         if (indexValid(value)) {
             return at(value).is(type);
@@ -221,26 +143,26 @@ namespace Parser {
         }
     }
     bool Parser::isIdentifier (const std::string& expected_value, std::optional<size_t> value) const {
-        if (is(Token::Type::Identifier, value)) {
-            const auto& data = at(value).getData<Token::IdentifierData>();
+        if (is(Lexer::Token::Type::Identifier, value)) {
+            const auto& data = at(value).getData<Lexer::Token::IdentifierData>();
             if (data.data == expected_value) {
                 return true;
             }
         }
         return false;
     }
-    bool Parser::isr (Token::Type type, size_t offset) const {
+    bool Parser::isr (Lexer::Token::Type type, size_t offset) const {
         return is(type, getIndex() + offset);
     }
-    const Token& Parser::expect (Token::Type type, std::optional<size_t> value) const {
+    const Lexer::Token& Parser::expect (Lexer::Token::Type type, std::optional<size_t> value) const {
         if (!is(type, value)) {
-            throw std::runtime_error("Expected token of (" + Token::typeToString(type) + ") got " + Token::typeToString(at().type));
+            throw std::runtime_error("Expected token of (" + Lexer::Token::typeToString(type) + ") got " + Lexer::Token::typeToString(at().type));
         }
         return at(value);
     }
-    const Token& Parser::expectIdentifier (const std::string& expected_value, std::optional<size_t> value) const {
-        expect(Token::Type::Identifier, value);
-        const auto& data = at().getData<Token::IdentifierData>();
+    const Lexer::Token& Parser::expectIdentifier (const std::string& expected_value, std::optional<size_t> value) const {
+        expect(Lexer::Token::Type::Identifier, value);
+        const auto& data = at().getData<Lexer::Token::IdentifierData>();
         if (data.data != expected_value) {
             throw std::runtime_error("Unexpected identifier, expected: '" + expected_value + "' got: '" + data.data + "'");
         }
@@ -250,11 +172,11 @@ namespace Parser {
     // TODO: it'd be good to simply return the root node here rather than forcing us to access the 'internal' state of this class
     void Parser::parse () {
         while (indexValid()) {
-            if (is(Token::Type::Identifier)) {
-                auto& data = at().getData<Token::IdentifierData>();
+            if (is(Lexer::Token::Type::Identifier)) {
+                auto& data = at().getData<Lexer::Token::IdentifierData>();
                 if (data.data == "func") {
                     // Function parsing
-                    nodes.nodes.push_back(parseFunction().value());
+                    nodes.nodes.push_back(parseFunction());
                 } else {
                     throw std::runtime_error("Unexpected identifier: " + at().toString(""));
                 }
@@ -263,112 +185,117 @@ namespace Parser {
             }
         }
     }
-    std::optional<FunctionNode> Parser::parseFunction () {
+    std::unique_ptr<FunctionNode> Parser::parseFunction () {
+        using Type = Lexer::Token::Type;
+
         expectIdentifier("func");         // func
         advance();
 
-        Util::Result<IdentifyingNameNode> identity = tryParseIdentifyingName();
+        /// unique_ptr<IdentifyingNameNode>
+        Util::Result<std::unique_ptr<BaseASTNode>> identity = tryParseIdentifyingName();
         if (identity.holdsError()) {
             throw std::runtime_error(identity.getError());
         }
 
-        TypeNode return_type = PrimordialTypeNode(PrimordialType::Void);
+        std::unique_ptr<TypeNode> return_type = std::make_unique<PrimordialTypeNode>(PrimordialType::Void);
 
         // Function parameter list. (name1 : type1, name2: type2)
-        expect(Token::Type::LParen); // (
+        expect(Type::LParen); // (
         advance();
 
-        std::vector<FunctionParameterNode> parameters;
-        while (!is(Token::Type::RParen)) {
-            const Token& name_token = expect(Token::Type::Identifier); // name
-            const std::string& name = name_token.getData<Token::IdentifierData>().data;
+        std::vector<std::unique_ptr<FunctionParameterInfo>> parameters;
+        while (!is(Type::RParen)) {
+            const Lexer::Token& name_token = expect(Type::Identifier); // name
+            const std::string& name = name_token.getData<Lexer::Token::IdentifierData>().data;
             advance();
-            expect(Token::Type::Colon); // :
+            expect(Type::Colon); // :
             advance();
-            auto type = parseType(); // type
-            if (!type.has_value()) {
+            std::unique_ptr<TypeNode> type = parseType(); // type
+            if (type == nullptr) {
                 throw std::runtime_error("Got parameter name (" + name + ") and colon, but type information was invalid.");
             }
 
-            parameters.push_back(FunctionParameterNode(type.value(), name));
+            parameters.push_back(std::make_unique<FunctionParameterInfo>(std::move(type), name));
 
-            if (is(Token::Type::Comma)) {
+            if (is(Type::Comma)) {
                 advance();
-                expect(Token::Type::Identifier);
+                expect(Type::Identifier);
             }
         }
 
-        expect(Token::Type::RParen); // )
+        expect(Type::RParen); // )
         advance();
 
         // TODO: parse possible modifiers here: (mut, reass)
 
         // Return type, -> type
-        if (is(Token::Type::Minus)) {
+        if (is(Type::Minus)) {
             advance();
-            if (is(Token::Type::RAngle)) { // ->
+            if (is(Type::RAngle)) { // ->
                 advance();
-                std::optional<TypeNode> written_type = parseType();
+                std::unique_ptr<TypeNode> written_type = parseType();
 
-                if (!written_type.has_value()) {
+                if (written_type == nullptr) {
                     throw std::runtime_error("Failed parsing return type of function.");
                 }
-                return_type = written_type.value();
+                return_type.reset(written_type.release());
             } else {
                 throw std::runtime_error("Unexpected lone - after function parameters.");
             }
         }
 
         // opening brace
-        expect(Token::Type::LBracket); // {
+        expect(Type::LBracket); // {
         advance();
 
         // function body
-        std::vector<StatementNode> body;
+        std::vector<std::unique_ptr<StatementASTNode>> body;
 
         while (true) {
-            std::optional<StatementNode> statement = parseStatement();
-            if (!statement.has_value()) {
+            std::unique_ptr<StatementASTNode> statement = parseStatement();
+            if (statement == nullptr) {
                 break;
             }
-            body.push_back(statement.value());
+            body.push_back(std::move(statement));
         }
 
         // closing brace
-        expect(Token::Type::RBracket); // }
+        expect(Type::RBracket); // }
         advance();
 
         //
-        return FunctionNode(
-            identity.get(),
+        return std::make_unique<FunctionNode>(
+            std::move(identity.get()),
             std::move(parameters),
-            return_type,
+            std::move(return_type),
             std::move(body)
         );
     }
 
-    std::optional<TypeNode> Parser::parseType () {
+    /// Returns nullptr if it could not parse the type.
+    std::unique_ptr<TypeNode> Parser::parseType () {
+        using Type = Lexer::Token::Type;
         pushIndice();
 
-        const Token& name_token = expect(Token::Type::Identifier);
-        const auto& name = name_token.getData<Token::IdentifierData>();
-        std::optional<TypeNode> node;
+        const Lexer::Token& name_token = expect(Type::Identifier);
+        const auto& name = name_token.getData<Lexer::Token::IdentifierData>();
+        std::unique_ptr<TypeNode> node = nullptr;
         std::optional<PrimordialType> primordial_type = stringToPrimordialType(name.data);
         if (primordial_type.has_value()) {
-            node.emplace(PrimordialTypeNode(primordial_type.value()));
+            node = std::make_unique<PrimordialTypeNode>(primordial_type.value());
         } else {
-            node.emplace(UnknownTypeNode());
+            node = std::make_unique<UnknownTypeNode>();
         }
         advance();
 
-        slideIndice(node.has_value());
+        slideIndice(node != nullptr);
         return node;
     }
 
-    std::optional<StatementNode> Parser::parseStatement () {
+    std::unique_ptr<StatementASTNode> Parser::parseStatement () {
         pushIndice();
 
-        std::optional<StatementNode> statement;
+        std::unique_ptr<StatementASTNode> statement = nullptr;
 
         if (isIdentifier("let")) {
             statement = parseStatement_variableDeclaration();
@@ -378,136 +305,147 @@ namespace Parser {
             statement = parseStatement_if();
         }
 
-        slideIndice(statement.has_value());
+        slideIndice(statement != nullptr);
         return statement;
     }
-    std::optional<StatementNode> Parser::parseStatement_variableDeclaration () {
+    std::unique_ptr<StatementASTNode> Parser::parseStatement_variableDeclaration () {
+        using Type = Lexer::Token::Type;
         expectIdentifier("let");
         advance();
 
         // variable name
-        Util::Result<IdentifyingNameNode> identity = tryParseIdentifyingName();
+        /// IdentifyingNameNode*
+        Util::Result<std::unique_ptr<BaseASTNode>> identity = tryParseIdentifyingName();
         if (identity.holdsError()) {
             throw std::runtime_error(identity.getError());
         }
 
         // : before type information. We don't do any automatic types yet
-        expect(Token::Type::Colon);
+        expect(Type::Colon);
         advance();
 
         // Type
-        std::optional<TypeNode> type = parseType();
-        if (!type.has_value()) {
+        std::unique_ptr<TypeNode> type = parseType();
+        if (type == nullptr) {
             throw std::runtime_error("Expected type in declaration of variable.");
         }
 
         // Currently we require there to be a value it is set to. This might be changed in the future.
         // =
-        expect(Token::Type::Equals);
+        expect(Type::Equals);
         advance();
 
-        std::optional<ExpressionNode> expression = parseExpression();
-        if (!expression.has_value()) {
+        /// ExpressionNode*
+        std::unique_ptr<BaseASTNode> expression = parseExpression();
+        if (expression == nullptr) {
             throw std::runtime_error("Expected expression to be what variable is set to.");
         }
 
-        expect(Token::Type::Semicolon);
+        expect(Type::Semicolon);
         advance();
 
-        return VariableStatementNode(
-            identity.get(),
-            type.value(),
-            expression.value()
+        return std::make_unique<VariableStatementNode>(
+            std::move(identity.get()),
+            std::move(type),
+            std::move(expression)
         );
     }
-    std::optional<StatementNode> Parser::parseStatement_return () {
+    // return returnstatementnode
+    std::unique_ptr<StatementASTNode> Parser::parseStatement_return () {
+        using Type = Lexer::Token::Type;
         expectIdentifier("return");
         advance();
 
-        if (is(Token::Type::Semicolon)) { // return;
+        if (is(Type::Semicolon)) { // return;
             advance();
-            return ReturnStatementNode();
+            return std::make_unique<ReturnStatementNode>();
         }
 
-        std::optional<ExpressionNode> expression = parseExpression();
-        if (!expression.has_value()) {
+        /// ExpressionNode*
+        std::unique_ptr<BaseASTNode> expression = parseExpression();
+        if (expression == nullptr) {
             throw std::runtime_error("Expected expression or no expression after `return`, got something that was not a valid expression.");
         }
 
-        expect(Token::Type::Semicolon);
+        expect(Type::Semicolon);
         advance();
 
-        return ReturnStatementNode(expression.value());
+        return std::make_unique<ReturnStatementNode>(std::move(expression));
     }
 
     /// Note: does not consume the identifier, assumes it's already been consumed.
-    static ConditionalPart parseIfPart (Parser& parser, bool should_have_conditional) {
-        std::optional<ExpressionNode> condition;
+    static std::unique_ptr<ConditionalPart> parseIfPart (Parser& parser, bool should_have_conditional) {
+        using Type = Lexer::Token::Type;
+        /// ExpressionNode*
+        std::unique_ptr<BaseASTNode> condition = nullptr;
         if (should_have_conditional) {
-            parser.expect(Token::Type::LParen);
+            parser.expect(Type::LParen);
             parser.advance();
 
-            if (parser.is(Token::Type::RParen)) {
+            if (parser.is(Type::RParen)) {
                 throw std::runtime_error("Expected condition in conditial statement, but got empty condition.");
             }
 
             condition = parser.parseExpression();
-            if (!condition.has_value()) {
+            if (condition == nullptr) {
                 throw std::runtime_error("Expected condition with conditional statement.");
             }
 
-            parser.expect(Token::Type::RParen);
+            parser.expect(Type::RParen);
             parser.advance();
         }
 
-        parser.expect(Token::Type::LBracket);
+        parser.expect(Type::LBracket);
         parser.advance();
 
-        std::vector<StatementNode> body;
+        std::vector<std::unique_ptr<StatementASTNode>> body;
         while (true) {
-            std::optional<StatementNode> statement = parser.parseStatement();
-            if (!statement.has_value()) {
+            std::unique_ptr<StatementASTNode> statement = parser.parseStatement();
+            if (statement == nullptr) {
                 break;
             }
-            body.push_back(statement.value());
+            body.push_back(std::move(statement));
         }
 
-        parser.expect(Token::Type::RBracket);
+        parser.expect(Type::RBracket);
         parser.advance();
 
-        return ConditionalPart(condition, body);
+        return std::make_unique<ConditionalPart>(std::move(condition), std::move(body));
     }
-    std::optional<StatementNode> Parser::parseStatement_if () {
+    // TODO: return ifstatementnode instead..
+    std::unique_ptr<StatementASTNode> Parser::parseStatement_if () {
         expectIdentifier("if");
         advance();
 
-        IfStatementNode if_statement(parseIfPart(*this, true));
+        std::unique_ptr<IfStatementNode> if_statement = std::make_unique<IfStatementNode>(parseIfPart(*this, true));
 
         // parse else if and else
         while (true) {
             if (isIdentifier("elif")) {
                 advance();
-                if_statement.parts.push_back(parseIfPart(*this, true));
+                if_statement->parts.push_back(parseIfPart(*this, true));
             } else if (isIdentifier("else")) {
                 advance();
-                if_statement.parts.push_back(parseIfPart(*this, false));
+                if_statement->parts.push_back(parseIfPart(*this, false));
                 break; // else statement is the last.
             } else {
                 break;
             }
         }
-        return if_statement;
+        return std::move(if_statement);
     }
 
-    Util::Result<FunctionCallNode> Parser::tryParseFunctionCall () {
+    Util::Result<std::unique_ptr<FunctionCallNode>> Parser::tryParseFunctionCall () {
+        using Type = Lexer::Token::Type;
         pushIndice();
 
-        Util::Result<IdentifyingNameNode> identity = tryParseIdentifyingName();
+        /// IdentifyingNameNode*
+        Util::Result<std::unique_ptr<BaseASTNode>> identity = tryParseIdentifyingName();
         if (identity.holdsError()) {
             return identity.getError();
         }
 
-        if (!is(Token::Type::LParen)) {
+        if (!is(Type::LParen)) {
             popIndice();
             return "Expected ( after function name.";
         }
@@ -515,31 +453,32 @@ namespace Parser {
         advance();
 
         // func()
-        if (is(Token::Type::RParen)) {
+        if (is(Type::RParen)) {
             advance();
             transformIndice();
-            return FunctionCallNode(identity.get(), {});
+            return std::make_unique<FunctionCallNode>(std::move(identity.get()));
         }
 
 
         // When the function call has parameters
-
-        std::vector<ExpressionNode> expressions;
+        
+        /// ExpressionNode*
+        std::vector<std::unique_ptr<BaseASTNode>> expressions;
 
         while (true) {
-            std::optional<ExpressionNode> expr = parseExpression();
-            if (!expr.has_value()) {
+            std::unique_ptr<BaseASTNode> expr = parseExpression();
+            if (expr == nullptr) {
                 popIndice();
                 return "Expected closing parentheses, or expression, received neither.";
             }
 
-            expressions.push_back(expr.value());
+            expressions.push_back(std::move(expr));
 
-            if (is(Token::Type::RParen)) {
+            if (is(Type::RParen)) {
                 advance();
                 transformIndice();
-                return FunctionCallNode(identity.get(), expressions);
-            } else if (is(Token::Type::Comma)) {
+                return std::make_unique<FunctionCallNode>(std::move(identity.get()), std::move(expressions));
+            } else if (is(Type::Comma)) {
                 advance();
             } else {
                 popIndice();
@@ -575,51 +514,57 @@ namespace Parser {
         Right
     };
 
-    static std::optional<ExpressionNode> parseExpressionExpr (Parser& parser, int min_prec);
+    static std::unique_ptr<BaseASTNode> parseExpressionExpr (Parser& parser, int min_prec);
 
-    static bool isBinaryOperator (const Token& token) {
-        return token.isOne(Token::Type::Plus, Token::Type::Minus, Token::Type::Star, Token::Type::Forwardslash, Token::Type::Percent);
+    static bool isBinaryOperator (const Lexer::Token& token) {
+        using Type = Lexer::Token::Type;
+        return token.isOne(Type::Plus, Type::Minus, Type::Star, Type::Forwardslash, Type::Percent);
     }
-    static OperatorPrecedence getBinaryOperatorPrecedence (Token::Type type) {
+    static OperatorPrecedence getBinaryOperatorPrecedence (Lexer::Token::Type type) {
+        using Type = Lexer::Token::Type;
         switch (type) {
-            case Token::Type::Plus: return OperatorPrecedence::Addition;
-            case Token::Type::Minus: return OperatorPrecedence::Subtraction;
-            case Token::Type::Star: return OperatorPrecedence::Multiplication;
-            case Token::Type::Forwardslash: return OperatorPrecedence::Division;
-            case Token::Type::Percent: return OperatorPrecedence::Modulo;
-            case Token::Type::StarStar: return OperatorPrecedence::Exponentiation;
+            case Type::Plus: return OperatorPrecedence::Addition;
+            case Type::Minus: return OperatorPrecedence::Subtraction;
+            case Type::Star: return OperatorPrecedence::Multiplication;
+            case Type::Forwardslash: return OperatorPrecedence::Division;
+            case Type::Percent: return OperatorPrecedence::Modulo;
+            case Type::StarStar: return OperatorPrecedence::Exponentiation;
             default:
-                throw std::runtime_error("Unknown binary operator from token type: " + Token::typeToString(type));
+                throw std::runtime_error("Unknown binary operator from token type: " + Lexer::Token::typeToString(type));
         }
     }
 
-    static Associativity getBinaryAssociativity (Token::Type type) {
+    static Associativity getBinaryAssociativity (Lexer::Token::Type type) {
+        using Type = Lexer::Token::Type;
         switch (type) {
             // Something like exponent might be right associative
-            case Token::Type::StarStar:
+            case Type::StarStar:
                 return Associativity::Right;
             default:
                 return Associativity::Left;
         }
     }
 
-    static bool isUnaryOperator (const Token& token) {
-        return token.isOne(Token::Type::Plus, Token::Type::Minus);
+    static bool isUnaryOperator (const Lexer::Token& token) {
+        using Type = Lexer::Token::Type;
+        return token.isOne(Type::Plus, Type::Minus);
     }
-    static OperatorPrecedence getUnaryOperatorPrecedence (Token::Type type) {
-        if (type == Token::Type::Plus) {
+    static OperatorPrecedence getUnaryOperatorPrecedence (Lexer::Token::Type type) {
+        using Type = Lexer::Token::Type;
+        if (type == Type::Plus) {
             return OperatorPrecedence::UnaryPlus;
-        } else if (type == Token::Type::Minus) {
+        } else if (type == Type::Minus) {
             return OperatorPrecedence::UnaryMinus;
         } else {
-            throw std::runtime_error("Unknown unary operator from token: " + Token::typeToString(type));
+            throw std::runtime_error("Unknown unary operator from token: " + Lexer::Token::typeToString(type));
         }
     }
 
     // This is ew, but it should work
     static bool isIdentifyingName (Parser& parser) {
         parser.pushIndice();
-        Util::Result<IdentifyingNameNode> identity = parser.tryParseIdentifyingName();
+        /// IdentifyingNameNode*
+        Util::Result<std::unique_ptr<BaseASTNode>> identity = parser.tryParseIdentifyingName();
         parser.popIndice();
 
         if (identity.holds()) {
@@ -635,89 +580,100 @@ namespace Parser {
     }
 
     /// Note: this simple creates the literal, it doesn not advacne the parser!
-    static ExpressionNode createLiteral (Parser& parser) {
-        const Token& token = parser.at();
+    /// returns ExpressionNode*
+    static std::unique_ptr<BaseASTNode> createLiteral (Parser& parser) {
+        const Lexer::Token& token = parser.at();
         if (isIdentifyingName(parser)) {
             // Try parsing a function call, but this will return an error message if it failed.
             // This is fine, since we then try to check if it's just a normal identifier
-            Util::Result<FunctionCallNode> function_call = parser.tryParseFunctionCall();
+            Util::Result<std::unique_ptr<FunctionCallNode>> function_call = parser.tryParseFunctionCall();
             if (function_call.holds()) {
-                return function_call.get();
+                return std::move(function_call.get());
             }
 
             // If it is a raw identifier then we check it for some special literals
-            if (parser.is(Token::Type::Identifier)) {
+            if (parser.is(Lexer::Token::Type::Identifier)) {
                 if (parser.isIdentifier("true")) {
                     parser.advance();
-                    return LiteralBooleanNode(true);
+                    return std::make_unique<LiteralBooleanNode>(true);
                 } else if (parser.isIdentifier("false")) {
                     parser.advance();
-                    return LiteralBooleanNode(false);
+                    return std::make_unique<LiteralBooleanNode>(false);
                 }
             }
 
             // It wasn't a function call so we try parsing a normal identifier.
-            Util::Result<IdentifyingNameNode> identity = parser.tryParseIdentifyingName();
+            /// IdentifyingNameNode*
+            Util::Result<std::unique_ptr<BaseASTNode>> identity = parser.tryParseIdentifyingName();
             if (identity.holdsError()) {
                 throw std::runtime_error("[Internal] Original error: '" + identity.getError() + "', but this should not have happened as directly before it is checked for if it is an identifying name.");
             }
 
-            return identity.get();
+            return std::move(identity.get());
         } else if (token.isNumber()) {
             parser.advance();
-            return LiteralNumberNode(token);
+            return std::make_unique<LiteralNumberNode>(token);
         } else {
             throw std::runtime_error("Cannot make literal. Unknown token type: " + token.toString(""));
         }
     }
 
-    static ExpressionNode createUnaryNode (Parser&, Token::Type type, ExpressionNode right) {
-        if (type == Token::Type::Plus) {
-            return UnaryPlusExpressionNode(right);
-        } else if (type == Token::Type::Minus) {
-            return UnaryMinusExpressionNode(right);
+    /// Returns ExpressionNode*
+    /// Owns [right]
+    static std::unique_ptr<BaseASTNode> createUnaryNode (Parser&, Lexer::Token::Type type, std::unique_ptr<BaseASTNode>&& right) {
+        using Type = Lexer::Token::Type;
+        if (type == Type::Plus) {
+            return std::make_unique<UnaryPlusExpressionNode>(std::move(right));
+        } else if (type == Type::Minus) {
+            return std::make_unique<UnaryMinusExpressionNode>(std::move(right));
         } else {
-            throw std::runtime_error("[Internal] Failed in creating node for unary operator: " + Token::typeToString(type) + " for expression: " + Util::toString(right, ""));
+            throw std::runtime_error("[Internal] Failed in creating node for unary operator: " + Lexer::Token::typeToString(type) + " for expression: " + right->toString(""));
         }
     }
-    static ExpressionNode createBinaryNode (Parser&, Token::Type type, ExpressionNode left, ExpressionNode right) {
-        if (type == Token::Type::Plus) {
-            return AddExpressionNode(left, right);
-        } else if (type == Token::Type::Minus) {
-            return SubtractExpressionNode(left, right);
-        } else if (type == Token::Type::Star) {
-            return MultiplyExpressionNode(left, right);
-        } else if (type == Token::Type::StarStar) {
+    /// Returns ExpressionNode*
+    /// Owns [left] and [right]
+    static std::unique_ptr<BaseASTNode> createBinaryNode (Parser&, Lexer::Token::Type type, std::unique_ptr<BaseASTNode>&& left, std::unique_ptr<BaseASTNode>&& right) {
+        using Type = Lexer::Token::Type;
+        if (type == Type::Plus) {
+            return std::make_unique<AddExpressionNode>(std::move(left), std::move(right));
+        } else if (type == Type::Minus) {
+            return std::make_unique<SubtractExpressionNode>(std::move(left), std::move(right));
+        } else if (type == Type::Star) {
+            return std::make_unique<MultiplyExpressionNode>(std::move(left), std::move(right));
+        } else if (type == Type::StarStar) {
             throw std::runtime_error("Impl exponents");
         } else {
-            throw std::runtime_error("[Internal] Failed in creating node for binary operator: " + Token::typeToString(type) + " for expressions: (" +
-                Util::toString(left, "") + ", " + Util::toString(right, "") + ")"
+            throw std::runtime_error("[Internal] Failed in creating node for binary operator: " + Lexer::Token::typeToString(type) + " for expressions: (" +
+                left->toString("") + ", " + right->toString("") + ")"
             );
         }
     }
 
-    static std::optional<ExpressionNode> parseExpressionPart (Parser& parser) {
+    /// Returns ExpressionNode*
+    /// may return nullptr
+    static std::unique_ptr<BaseASTNode> parseExpressionPart (Parser& parser) {
+        using Type = Lexer::Token::Type;
         if (!parser.indexValid()) {
             std::cout << "We're past our stay. There's no more parts since index is past the end\n";
-            return std::nullopt;
-        } else if (parser.is(Token::Type::LParen)) { // (expression)
+            return nullptr;
+        } else if (parser.is(Type::LParen)) { // (expression)
             parser.advance();
-            std::optional<ExpressionNode> expr = parseExpressionExpr(parser, 1);
-            if (!expr.has_value()) {
+            std::unique_ptr<BaseASTNode> expr = parseExpressionExpr(parser, 1);
+            if (expr == nullptr) {
                 throw std::runtime_error("Expected expression inside parentheses");
             }
-            parser.expect(Token::Type::RParen);
+            parser.expect(Type::RParen);
             parser.advance();
             return expr;
         } else if (isUnaryOperator(parser.at())) {
-            const Token& op_token = parser.at();
+            const Lexer::Token& op_token = parser.at();
             OperatorPrecedence op = getUnaryOperatorPrecedence(op_token.type);
             parser.advance();
-            std::optional<ExpressionNode> right = parseExpressionExpr(parser, static_cast<int>(op));
-            if (!right.has_value()) {
+            std::unique_ptr<BaseASTNode> right = parseExpressionExpr(parser, static_cast<int>(op));
+            if (right == nullptr) {
                 throw std::runtime_error("Expected expression after unary operator.");
             }
-            return createUnaryNode(parser, op_token.type, right.value());
+            return createUnaryNode(parser, op_token.type, std::move(right));
         } else if (isBinaryOperator(parser.at())) {
             throw std::runtime_error("Expected part while parsing expression but got binary operator: " + parser.at().toString(""));
         } else if (isLiteral(parser)) {
@@ -727,16 +683,18 @@ namespace Parser {
         }
     }
 
-    static std::optional<ExpressionNode> parseExpressionExpr (Parser& parser, int min_prec) {
-        std::optional<ExpressionNode> left = parseExpressionPart(parser);
-        if (!left.has_value()) {
+    /// Returns ExpressionNode*
+    static std::unique_ptr<BaseASTNode> parseExpressionExpr (Parser& parser, int min_prec) {
+        /// ExpressNode*
+        std::unique_ptr<BaseASTNode> left = parseExpressionPart(parser);
+        if (left == nullptr) {
             std::cout << "Expected part but didn't get one.\n";
-            return std::nullopt;
+            return nullptr;
         }
 
         while (true) {
-            const Token& current_token = parser.at();
-            const Token::Type current_type = current_token.type;
+            const Lexer::Token& current_token = parser.at();
+            const Lexer::Token::Type current_type = current_token.type;
 
             if (!isBinaryOperator(current_token)) {
                 std::cout << "Breaking from loop (" + current_token.toString("") + ") was not a binary operator\n";
@@ -756,18 +714,19 @@ namespace Parser {
             }
 
             parser.advance();
-            std::optional<ExpressionNode> right = parseExpressionExpr(parser, next_min_prec);
-            if (!right.has_value()) {
+            std::unique_ptr<BaseASTNode> right = parseExpressionExpr(parser, next_min_prec);
+            if (right == nullptr) {
                 throw std::runtime_error("Expected expression on right side of binary operator.");
             }
-            left = createBinaryNode(parser, current_type, left.value(), right.value());
+            left = createBinaryNode(parser, current_type, std::move(left), std::move(right));
         }
         return left;
     }
 
     // ==== Continuation of Parser Code ====
 
-    std::optional<ExpressionNode> Parser::parseExpression () {
+    /// Returns ExpressionNode*
+    std::unique_ptr<BaseASTNode> Parser::parseExpression () {
         // TODO: divide /
         // TODO: modulo %
         // TODO: bitwise-and &
@@ -783,15 +742,16 @@ namespace Parser {
         return parseExpressionExpr(*this, 1);
     }
 
-    Util::Result<IdentifyingNameNode> Parser::tryParseIdentifyingName () {
+    /// Returns IdentifyingNameNode*
+    Util::Result<std::unique_ptr<BaseASTNode>> Parser::tryParseIdentifyingName () {
         pushIndice();
 
-        if (is(Token::Type::Identifier)) {
+        if (is(Lexer::Token::Type::Identifier)) {
             // We know we're trying to parse an identifying name, so rather than Raw we go for Literal identifier
-            auto temp = LiteralIdentifierNode(at());
+            std::unique_ptr<LiteralIdentifierNode> temp = std::make_unique<LiteralIdentifierNode>(at());
             advance();
             transformIndice();
-            return IdentifyingNameNode(temp);
+            return std::move(temp);
         }
 
         popIndice();

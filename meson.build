@@ -11,6 +11,7 @@ add_global_arguments('-DDEBUG', language : 'cpp')
 
 if meson.get_compiler('cpp').get_id() == 'clang'
     message('Using Clang compiler for C++, enabling all warnings')
+    add_global_arguments('-fno-rtti', language : 'cpp')
     add_global_arguments('-Weverything', '-Wno-c++98-compat', '-Wno-c++98-compat-pedantic', '-Wno-padded', '-Wno-exit-time-destructors', '-Wno-global-constructors', '-Wno-newline-eof', '-Wstrict-overflow=3', language : 'cpp')
 endif
 
