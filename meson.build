@@ -25,6 +25,7 @@ srcs = [
     'src/Util/util.cpp',
     'src/Lexer/Lexer.cpp',
     'src/Parser/Parser.cpp',
+    'src/Parser/Nodes.cpp',
     'src/Compiler/Compiler.cpp'
 ]
 

@@ -17,11 +17,14 @@
 #include "../Parser/Parser.hpp"
 
 namespace Compiler {
-	using namespace Parser;
-
 	using Value = llvm::Value;
 	using Function = llvm::Function;
 	using BasicBlock = llvm::BasicBlock;
+
+	enum class Stage {
+		Global, // Setting up global definitions. Like function prototypes.
+		Normal, // Setting up most nodes.
+	};
 
     llvm::AllocaInst* createEntryBlockStackAllocation (Function* function, llvm::Type* type, const std::string& name);
 
@@ -31,26 +34,17 @@ namespace Compiler {
 		std::unique_ptr<llvm::Module> modul;
 		std::map<std::string, llvm::AllocaInst*> named_values;
 		// This is ours now, so we do whatever to it.
-		ParentASTNode nodes;
+		Parser::ParentASTNode nodes;
 
-		explicit Compiler (ParentASTNode&& t_nodes);
+		Stage stage;
+
+		explicit Compiler (Parser::ParentASTNode&& t_nodes);
 
 		Value* logErrorValue (const char* str);
 
 		void compile (std::ostream& output);
 		void codegenGlobals ();
 
-		Function* codegenFunctionPrototype (const std::string& name, const std::vector<std::unique_ptr<FunctionParameterInfo>>& parameters, const std::unique_ptr<TypeNode>& return_type);
-
-		Function* codegenFunctionBody (std::unique_ptr<FunctionNode>&& func_node);
-
-		void codegenStatement (std::unique_ptr<StatementASTNode>&& statement, Function* function);
-		void codegenStatement (std::unique_ptr<VariableStatementNode>&& variable_decl, Function* function);
-		void codegenStatement (std::unique_ptr<ReturnStatementNode>&& return_statement, Function* function);
-		void codegenStatement (std::unique_ptr<IfStatementNode>&& if_statement, Function*);
-
-		Value* codegenExpression (std::unique_ptr<BaseASTNode>&& expr);
-
-		llvm::Type* convertPrimordialType (PrimordialType type);
+		void clearScope ();
 	};
 }
