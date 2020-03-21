@@ -54,6 +54,8 @@ namespace ParserPass {
             if (is_void_return && Ret->value != nullptr) {
                 // TODO: support returning a function that returns void.
                 std::cerr << "Function returns void but return has a return value!\n";
+            } else if (!is_void_return && Ret->value == nullptr) {
+                std::cerr << "Function returns non-void type, but return statement does not have an expression!\n";
             }
             return true;
         } else {
