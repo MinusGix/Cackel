@@ -85,6 +85,11 @@ namespace ParserPass {
                 }
 
                 std::cout << "Function makes full returns: " << full_return << "\n";
+
+                if (is_void_return && !full_return) {
+                    std::cout << "Function returns void but does not have a return statement, inserting one.\n";
+                    func->body.push_back(std::make_unique<Parser::ReturnStatementNode>());
+                }
             }
         }
     }
