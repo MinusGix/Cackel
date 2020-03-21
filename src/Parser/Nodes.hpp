@@ -276,6 +276,17 @@ namespace Parser {
         }
     };
 
+    struct ExpressionStatementNode : public StatementASTNode {
+        std::unique_ptr<BaseASTNode> expression;
+        explicit ExpressionStatementNode (std::unique_ptr<BaseASTNode>&& t_expression);
+        std::string toString(const std::string& indent) const override;
+        static bool classof (const StatementASTNode* s) {
+            return s->getKind() == Kind::Expression;
+        }
+
+        llvm::Value* codegen (Compiler::Compiler& compiler) override;
+    };
+
     struct VariableStatementNode : public StatementASTNode {
         // TODO: make this use unique_ptr
         // IdentifyingNameNode* ew

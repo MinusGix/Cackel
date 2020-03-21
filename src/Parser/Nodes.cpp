@@ -319,6 +319,15 @@ namespace Parser {
 
     // ==== Statement Nodes ====
 
+    ExpressionStatementNode::ExpressionStatementNode (std::unique_ptr<BaseASTNode>&& t_expression) : StatementASTNode(Kind::Expression), expression(std::move(t_expression)) {}
+    std::string ExpressionStatementNode::toString(const std::string& indent) const {
+        return expression->toString(indent) + ";";
+    }
+
+    llvm::Value* ExpressionStatementNode::codegen (Compiler::Compiler& compiler) {
+        return expression->codegen(compiler);
+    }
+
 
     VariableStatementNode::VariableStatementNode (std::unique_ptr<BaseASTNode>&& t_identity, std::unique_ptr<TypeNode>&& t_type, std::unique_ptr<BaseASTNode>&& t_value) : StatementASTNode(Kind::Variable), identity(std::move(t_identity)), type(std::move(t_type)), value(std::move(t_value)) {}
     std::string VariableStatementNode::toString (const std::string& indent) const {

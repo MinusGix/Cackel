@@ -197,10 +197,21 @@ namespace Parser {
             statement = parseStatement_return();
         } else if (isIdentifier("if")) {
             statement = parseStatement_if();
+        } else if (is(Lexer::Token::Type::Identifier)) {
+            // TODO: this is a really iffy way of allowed expressions all by themselves..
+            // make parseExpression become tryParseExpression so that you can recover.
+            // TODO: also, making this only allow certain types of expressions would be nice.
+            statement = parseStatement_expression();
         }
 
         slideIndice(statement != nullptr);
         return statement;
+    }
+    std::unique_ptr<StatementASTNode> Parser::parseStatement_expression () {
+        std::unique_ptr<BaseASTNode> expression = parseExpression();
+        expect(Lexer::Token::Type::Semicolon);
+        advance();
+        return std::make_unique<ExpressionStatementNode>(std::move(expression));
     }
     std::unique_ptr<StatementASTNode> Parser::parseStatement_variableDeclaration () {
         using Type = Lexer::Token::Type;
@@ -547,6 +558,7 @@ namespace Parser {
     /// may return nullptr
     static std::unique_ptr<BaseASTNode> parseExpressionPart (Parser& parser) {
         using Type = Lexer::Token::Type;
+        std::cout << "ParseExpressionPart " << Lexer::Token::typeToString(parser.at().type) << "\n";
         if (!parser.indexValid()) {
             std::cout << "We're past our stay. There's no more parts since index is past the end\n";
             return nullptr;
@@ -579,6 +591,7 @@ namespace Parser {
 
     /// Returns ExpressionNode*
     static std::unique_ptr<BaseASTNode> parseExpressionExpr (Parser& parser, int min_prec) {
+        std::cout << "parseExpressionExpr\n";
         /// ExpressNode*
         std::unique_ptr<BaseASTNode> left = parseExpressionPart(parser);
         if (left == nullptr) {
@@ -621,6 +634,7 @@ namespace Parser {
 
     /// Returns ExpressionNode*
     std::unique_ptr<BaseASTNode> Parser::parseExpression () {
+        std::cout << "Parse expression *function*\n";
         // TODO: divide /
         // TODO: modulo %
         // TODO: bitwise-and &
