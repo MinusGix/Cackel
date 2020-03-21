@@ -1,5 +1,6 @@
 #include "Nodes.hpp"
 #include "../Compiler/Compiler.hpp"
+#include <iostream>
 
 namespace Parser {
     /// ==== Types ====
@@ -338,7 +339,7 @@ namespace Parser {
         // Create an allocation on the stack for the variable. This makes it mutable.
         llvm::AllocaInst* alloc_value = Compiler::createEntryBlockStackAllocation(function, convertPrimordialType(compiler.context, type_node->type), name);
         // Store it in the scope.
-        compiler.named_values.at(name) = alloc_value;
+        compiler.named_values[name] = alloc_value;
         // generate the expression it has been set to
         llvm::Value* generated_expression = value->codegen(compiler);
         if (generated_expression == nullptr) {
@@ -422,8 +423,15 @@ namespace Parser {
 
         BasicBlock* other_block = else_block;
 
-        if (!hasElseStatement()) {
+        bool has_else_statement = hasElseStatement();
+
+        bool if_fully_returns = root->always_exits;
+        bool else_fully_returns = false;
+
+        if (!has_else_statement) {
             other_block = merge_block;
+        } else {
+            else_fully_returns = getElseStatement()->always_exits;
         }
 
         // Create branch to if-block or else-block
@@ -437,8 +445,9 @@ namespace Parser {
         }
 
         // Create branch to merge block
-        // TODO: only do this if it doesn't completely return
-        compiler.builder.CreateBr(merge_block);
+        if (!if_fully_returns) {
+            compiler.builder.CreateBr(merge_block);
+        }
 
         // Generate code for else block
         if (hasElseStatement()) {
@@ -450,11 +459,16 @@ namespace Parser {
                 statement->codegen(compiler);
             }
 
-            compiler.builder.CreateBr(merge_block);
+            if (!else_fully_returns) {
+                compiler.builder.CreateBr(merge_block);
+            }
         }
 
-        function->getBasicBlockList().push_back(merge_block);
-        compiler.builder.SetInsertPoint(merge_block);
+        if (!if_fully_returns || !else_fully_returns) {
+            function->getBasicBlockList().push_back(merge_block);
+            compiler.builder.SetInsertPoint(merge_block);
+        }
+
 
         // Not entirely sure what to return, so we return nullptr.
         return nullptr;
@@ -464,6 +478,8 @@ namespace Parser {
         if (compiler.stage != Compiler::Stage::Normal) {
             return nullptr;
         }
+
+        return codegenIf(compiler);
     }
 
     // then function node
@@ -548,7 +564,7 @@ namespace Parser {
             llvm::AllocaInst* alloc_value = Compiler::createEntryBlockStackAllocation(function, arg.getType(), arg.getName());
             compiler.builder.CreateStore(&arg, alloc_value);
 
-            compiler.named_values.at(std::string(arg.getName())) = alloc_value;
+            compiler.named_values[std::string(arg.getName())] = alloc_value;
         }
 
         for (std::unique_ptr<StatementASTNode>& statement : body) {

@@ -26,6 +26,7 @@ srcs = [
     'src/Lexer/Lexer.cpp',
     'src/Parser/Parser.cpp',
     'src/Parser/Nodes.cpp',
+    'src/Parser/Pass/FunctionExitVerifier/FunctionExitVerifier.cpp',
     'src/Compiler/Compiler.cpp'
 ]
 

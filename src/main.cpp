@@ -9,6 +9,7 @@
 #include "Lexer/Lexer.hpp"
 
 #include "Parser/Parser.hpp"
+#include "Parser/Pass/FunctionExitVerifier/FunctionExitVerifier.hpp"
 
 #include "Compiler/Compiler.hpp"
 
@@ -60,12 +61,14 @@ struct CompilerState {
 			}
 		}
 
-		Parser::ParentASTNode nodes = parse(std::move(tokens));
+		Parser::ParentASTNode parsed_nodes = parse(std::move(tokens));
 		if (log_nodes) {
-			std::cout << nodes.toString("  ") << "\n";
+			std::cout << parsed_nodes.toString("  ") << "\n";
 		}
 
-		compile(std::move(nodes), output_stream);
+		ParserPass::FunctionExitVerifier exit_verifier(parsed_nodes);
+
+		compile(std::move(parsed_nodes), output_stream);
 	}
 };
 

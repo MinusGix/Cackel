@@ -314,6 +314,8 @@ namespace Parser {
         /// ExpressionNode* may be null
         std::unique_ptr<BaseASTNode> condition = nullptr;
         std::vector<std::unique_ptr<StatementASTNode>> body;
+        bool always_exits = false;
+
         explicit ConditionalPart (std::unique_ptr<BaseASTNode>&& t_condition, std::vector<std::unique_ptr<StatementASTNode>>&& t_body);
 
         std::string toString (const std::string& indent) const;
