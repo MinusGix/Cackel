@@ -46,5 +46,7 @@ namespace Compiler {
 		void codegenGlobals ();
 
 		void clearScope ();
+
+		Function* getCurrentFunction ();
 	};
 }

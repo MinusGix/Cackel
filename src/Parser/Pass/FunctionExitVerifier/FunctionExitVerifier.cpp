@@ -40,7 +40,15 @@ namespace ParserPass {
                     all_has_return = false;
                 }
             }
-            return all_has_return;
+
+            // If it does not have an else statement then it could skip past the if/elif blocks.
+            if (!If->hasElseStatement()) {
+                If->always_exits = false;
+                return false;
+            } else {
+                If->always_exits = all_has_return;
+                return all_has_return;
+            }
         } else if (auto Ret = llvm::dyn_cast<Parser::ReturnStatementNode>(ptr)) {
             // TODO: handle more types here
             if (is_void_return && Ret->value != nullptr) {

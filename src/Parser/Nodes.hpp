@@ -323,6 +323,9 @@ namespace Parser {
     struct IfStatementNode : public StatementASTNode {
         std::unique_ptr<ConditionalPart> root;
         std::vector<std::unique_ptr<ConditionalPart>> parts;
+        // This is more than just a (root->always_exits && parts[i]->always_exits...) 
+        // If there is no else statement then it's possible that it exits.
+        bool always_exits = false;
         explicit IfStatementNode (std::unique_ptr<ConditionalPart>&& t_root);
 
         std::string toString (const std::string& indent) const override;
@@ -339,6 +342,9 @@ namespace Parser {
         virtual llvm::Value* codegenIf (Compiler::Compiler& compiler);
 
         llvm::Value* codegen (Compiler::Compiler& compiler) override;
+
+        protected:
+        llvm::Value* createConditional (Compiler::Compiler& compiler, llvm::Value* condition);
     };
 
     // then function node

@@ -45,4 +45,8 @@ namespace Compiler {
     void Compiler::clearScope () {
         named_values.clear();
     }
+
+    Function* Compiler::getCurrentFunction () {
+        return builder.GetInsertBlock()->getParent();
+    }
 };

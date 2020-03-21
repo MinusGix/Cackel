@@ -403,72 +403,95 @@ namespace Parser {
     std::unique_ptr<ConditionalPart>& IfStatementNode::getElseStatement () {
         return parts.at(parts.size() - 1);
     }
+    // == If statement Utility ==
+    llvm::Value* IfStatementNode::createConditional (Compiler::Compiler& compiler, llvm::Value* condition) {
+        // This is iffy comparing it against a 64 bit int
+        return compiler.builder.CreateICmpNE(condition, llvm::ConstantInt::get(compiler.context, llvm::APInt(64, 0, false)));
+    }
 
+    // == If statement codegen
     llvm::Value* IfStatementNode::codegenIf (Compiler::Compiler& compiler) {
         using BasicBlock = llvm::BasicBlock;
 
-        llvm::Value* root_condition = root->condition->codegen(compiler);
-        assert(root_condition != nullptr);
-        // TODO: this is iffy to compare directly against a 64 bit int.
-        root_condition = compiler.builder.CreateICmpNE(root_condition, llvm::ConstantInt::get(compiler.context, llvm::APInt(64, 0, false)));
+        llvm::Function* function = compiler.getCurrentFunction();
 
-        llvm::Function* function = compiler.builder.GetInsertBlock()->getParent();
-
-        // Code in the if-statements body
         BasicBlock* if_block = BasicBlock::Create(compiler.context, "if", function);
-        // Code in potential else-statement's body
-        BasicBlock* else_block = BasicBlock::Create(compiler.context, "else");
-        // Merge point for the two blocks
-        BasicBlock* merge_block = BasicBlock::Create(compiler.context, "ifcont");
+        BasicBlock* else_block = nullptr;
+        BasicBlock* merge_block = BasicBlock::Create(compiler.context, "merge");
 
-        BasicBlock* other_block = else_block;
+        llvm::Value* root_condition = createConditional(compiler, root->condition->codegen(compiler));
 
-        bool has_else_statement = hasElseStatement();
-
-        bool if_fully_returns = root->always_exits;
-        bool else_fully_returns = false;
-
-        if (!has_else_statement) {
-            other_block = merge_block;
+        if (parts.size() > 0) {
+            else_block = BasicBlock::Create(compiler.context, "else");
+            compiler.builder.CreateCondBr(root_condition, if_block, else_block);
         } else {
-            else_fully_returns = getElseStatement()->always_exits;
+            compiler.builder.CreateCondBr(root_condition, if_block, merge_block);
         }
 
-        // Create branch to if-block or else-block
-        compiler.builder.CreateCondBr(root_condition, if_block, other_block);
-
-        // Move to editing if-statement code block
+        // Generate if statement
         compiler.builder.SetInsertPoint(if_block);
-        // Add statements to if-statement block
         for (std::unique_ptr<StatementASTNode>& statement : root->body) {
             statement->codegen(compiler);
         }
-
-        // Create branch to merge block
-        if (!if_fully_returns) {
+        if (!root->always_exits) {
             compiler.builder.CreateBr(merge_block);
         }
 
-        // Generate code for else block
-        if (hasElseStatement()) {
-            std::unique_ptr<ConditionalPart>& else_part = getElseStatement();
 
-            function->getBasicBlockList().push_back(else_block);
-            compiler.builder.SetInsertPoint(else_block);
-            for (std::unique_ptr<StatementASTNode>& statement : else_part->body) {
-                statement->codegen(compiler);
-            }
+        bool other_always_exits = true;
+        if (parts.size() > 0) {
+            for (size_t i = 0; i < parts.size(); i++) {
+                std::unique_ptr<ConditionalPart>& part = parts.at(i);
 
-            if (!else_fully_returns) {
-                compiler.builder.CreateBr(merge_block);
+                if (!part->always_exits) {
+                    other_always_exits = false;
+                }
+
+
+                function->getBasicBlockList().push_back(else_block);
+                compiler.builder.SetInsertPoint(else_block);
+
+                if (i == (parts.size() - 1) && part->condition == nullptr) { // else-block
+                    // we're the last so just dump the code
+                    for (std::unique_ptr<StatementASTNode>& statement : part->body) {
+                        statement->codegen(compiler);
+                    }
+
+                    if (!part->always_exits) {
+                        compiler.builder.CreateBr(merge_block);
+                    }
+                } else {
+                    llvm::Value* condition = createConditional(compiler, part->condition->codegen(compiler));
+                    BasicBlock* next_if_block = BasicBlock::Create(compiler.context, "elseif");
+                    BasicBlock* next_else_block = BasicBlock::Create(compiler.context, "else");
+
+                    if (i == (parts.size() - 1)) {
+                        compiler.builder.CreateCondBr(condition, next_if_block, merge_block);
+                    } else {
+                        compiler.builder.CreateCondBr(condition, next_if_block, next_else_block);
+                    }
+
+                    function->getBasicBlockList().push_back(next_if_block);
+                    compiler.builder.SetInsertPoint(next_if_block);
+                    for (std::unique_ptr<StatementASTNode>& statement : part->body) {
+                        statement->codegen(compiler);
+                    }
+
+                    if (!part->always_exits) {
+                        compiler.builder.CreateBr(merge_block);
+                    }
+
+                    else_block = next_else_block;
+                }
             }
         }
 
-        if (!if_fully_returns || !else_fully_returns) {
+        // If not everything exits or
+        // If it does not have an else statement then there's a chance it could exit the ifstatement even if all parts have returns
+        if (!(other_always_exits && root->always_exits) || !hasElseStatement()) {
             function->getBasicBlockList().push_back(merge_block);
             compiler.builder.SetInsertPoint(merge_block);
         }
-
 
         // Not entirely sure what to return, so we return nullptr.
         return nullptr;
