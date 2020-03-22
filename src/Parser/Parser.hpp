@@ -27,7 +27,9 @@ namespace Parser {
         const Lexer::Token& expectIdentifier (const std::string& expected_value, std::optional<size_t> value=std::nullopt) const;
 
         void parse ();
+        FunctionSignatureInfo parseFunctionSignature ();
         std::unique_ptr<FunctionNode> parseFunction ();
+        std::unique_ptr<ExternNode> parseExtern ();
         std::unique_ptr<TypeNode> parseType ();
         std::unique_ptr<StatementASTNode> parseStatement ();
         std::unique_ptr<StatementASTNode> parseStatement_expression ();

@@ -386,15 +386,24 @@ namespace Parser {
         explicit FunctionParameterInfo (std::unique_ptr<TypeNode>&& t_type, std::string t_name, bool t_is_mutable);
         std::string toString (const std::string& indent) const;
     };
-    struct FunctionNode : public DeclASTNode {
+    struct FunctionSignatureInfo {
+        // TODO: give this a name-convention
         // TODO: should this be allowed to be null for compiler generated functions
         /// IdentifyingNameNode*
         std::unique_ptr<BaseASTNode> identity;
         // This is made a list of pointers despite functionparameterinfo not needing it, because it may soon in the future.
         std::vector<std::unique_ptr<FunctionParameterInfo>> parameters;
         std::unique_ptr<TypeNode> return_type;
+
+        explicit FunctionSignatureInfo (std::unique_ptr<BaseASTNode>&& t_identity, std::vector<std::unique_ptr<FunctionParameterInfo>>&& t_parameters, std::unique_ptr<TypeNode>&& t_return_type);
+        std::string toString (const std::string& indent) const;
+
+        llvm::Value* codegen (Compiler::Compiler& compiler);
+    };
+    struct FunctionNode : public DeclASTNode {
+        FunctionSignatureInfo signature;
         std::vector<std::unique_ptr<StatementASTNode>> body;
-        explicit FunctionNode (std::unique_ptr<BaseASTNode>&& t_identity, std::vector<std::unique_ptr<FunctionParameterInfo>>&& t_parameters, std::unique_ptr<TypeNode>&& t_return_type, std::vector<std::unique_ptr<StatementASTNode>>&& t_body);
+        explicit FunctionNode (FunctionSignatureInfo&& t_signature, std::vector<std::unique_ptr<StatementASTNode>>&& t_body);
 
         std::string toString (const std::string& indent) const override;
 
@@ -402,8 +411,35 @@ namespace Parser {
             return d->getKind() == Kind::Function;
         }
 
-        virtual llvm::Value* codegenPrototype (Compiler::Compiler& compiler);
         virtual llvm::Value* codegenBody (Compiler::Compiler& compiler);
+        llvm::Value* codegen (Compiler::Compiler& compiler) override;
+    };
+
+
+
+    struct ExternNode : public DeclASTNode {
+        enum class ExternKind {
+            #define EXTERN_KIND(X) X,
+            #include "ExternKinds.inc"
+        };
+        private:
+        const ExternKind extern_kind;
+        public:
+        ExternNode (ExternKind t_extern_kind) : DeclASTNode(Kind::ExternDecl), extern_kind(t_extern_kind) {}
+        static bool classof (const DeclASTNode* d) {
+            return d->getKind() == Kind::ExternDecl;
+        }
+        ExternKind getExternKind () const {
+            return extern_kind;
+        }
+    };
+    struct ExternFunctionNode : public ExternNode {
+        FunctionSignatureInfo signature;
+        ExternFunctionNode (FunctionSignatureInfo&& t_signature);
+        static bool classof (const DeclASTNode* d) {
+            return d->getKind() == Kind::ExternDecl && llvm::cast<ExternNode>(d)->getExternKind() == ExternKind::FunctionDeclaration;
+        }
+        std::string toString (const std::string& indent) const override;
         llvm::Value* codegen (Compiler::Compiler& compiler) override;
     };
 }

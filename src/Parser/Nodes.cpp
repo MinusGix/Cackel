@@ -205,7 +205,7 @@ namespace Parser {
             return nullptr;
         }
         const uint64_t number_value = std::stoi(value);
-        size_t size = 64;
+        size_t size = 32;
         assert(size > 0);
         return llvm::ConstantInt::get(compiler.context, llvm::APInt(size, number_value, false));
     }
@@ -539,17 +539,12 @@ namespace Parser {
         return "FParam[" + type->toString(indent) + ", " + name + "]";
     }
 
-    FunctionNode::FunctionNode (std::unique_ptr<BaseASTNode>&& t_identity, std::vector<std::unique_ptr<FunctionParameterInfo>>&& t_parameters, std::unique_ptr<TypeNode>&& t_return_type, std::vector<std::unique_ptr<StatementASTNode>>&& t_body) :
-        DeclASTNode(Kind::Function), identity(std::move(t_identity)), parameters(std::move(t_parameters)), return_type(std::move(t_return_type)), body(std::move(t_body)) {}
-
-    std::string FunctionNode::toString (const std::string& indent) const {
-        return "Function[" + Util::toString(identity, indent) + ",\n" +
-            indent + " \t(" + Util::stringJoin(parameters, ", ", indent + "\t") + "),\n" +
-            indent + "\t->" + Util::toString(return_type, indent) + ", ""{\n" +
-            indent + "\t\t" + Util::stringJoin(body, ";\n" + indent + "\t\t", indent + "\t\t", true) + "\n" + indent + "\t}";
+    FunctionSignatureInfo::FunctionSignatureInfo (std::unique_ptr<BaseASTNode>&& t_identity, std::vector<std::unique_ptr<FunctionParameterInfo>>&& t_parameters, std::unique_ptr<TypeNode>&& t_return_type) :
+        identity(std::move(t_identity)), parameters(std::move(t_parameters)), return_type(std::move(t_return_type)) {}
+    std::string FunctionSignatureInfo::toString (const std::string& indent) const {
+        return "[" + identity->toString(indent) + "(" + Util::stringJoin(parameters, ", ", indent) + ") -> " + return_type->toString("") + "]";
     }
-
-    llvm::Value* FunctionNode::codegenPrototype (Compiler::Compiler& compiler) {
+    llvm::Value* FunctionSignatureInfo::codegen (Compiler::Compiler& compiler) {
         std::vector<llvm::Type*> generated_parameters;
         for (const std::unique_ptr<FunctionParameterInfo>& parameter : parameters) {
             // TODO: give primordialtypenode and typenode a function to generate the llvm::Type*
@@ -584,11 +579,22 @@ namespace Parser {
 
         return function;
     }
+
+    FunctionNode::FunctionNode (FunctionSignatureInfo&& t_signature, std::vector<std::unique_ptr<StatementASTNode>>&& t_body) :
+        DeclASTNode(Kind::Function), signature(std::move(t_signature)), body(std::move(t_body)) {}
+
+    std::string FunctionNode::toString (const std::string& indent) const {
+        return "Function[" + signature.toString(indent) +  " {\n" +
+            indent + "\t\t" + Util::stringJoin(body, ";\n" + indent + "\t\t", indent + "\t\t", true) + "\n" + indent + "\t}";
+    }
+
     llvm::Value* FunctionNode::codegenBody (Compiler::Compiler& compiler) {
         /// Clear the current scope
         compiler.clearScope();
 
-        const std::string name = getIdentityName(identity);
+        // TODO: give signature a getName function
+        // TODO: perhaps a "get llvm function" function on the signature to make this even easier.
+        const std::string name = getIdentityName(signature.identity);
 
         llvm::Function* function = compiler.modul->getFunction(name);
 
@@ -622,11 +628,22 @@ namespace Parser {
     }
     llvm::Value* FunctionNode::codegen (Compiler::Compiler& compiler) {
         if (compiler.stage == Compiler::Stage::Global) {
-            return codegenPrototype(compiler);
+            return signature.codegen(compiler);
         } else if (compiler.stage == Compiler::Stage::Normal) {
             return codegenBody(compiler);
         } else {
             return nullptr;
         }
+    }
+
+    ExternFunctionNode::ExternFunctionNode (FunctionSignatureInfo&& t_signature) : ExternNode(ExternKind::FunctionDeclaration), signature(std::move(t_signature)) {}
+    std::string ExternFunctionNode::toString (const std::string& indent) const {
+        return "Extern[" + signature.toString(indent) + "]";
+    }
+    llvm::Value* ExternFunctionNode::codegen (Compiler::Compiler& compiler) {
+        if (compiler.stage == Compiler::Stage::Global) {
+            return signature.codegen(compiler);
+        }
+        return nullptr;
     }
 }

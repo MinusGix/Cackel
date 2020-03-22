@@ -71,6 +71,8 @@ namespace Parser {
                 if (data.data == "func") {
                     // Function parsing
                     nodes.nodes.push_back(parseFunction());
+                } else if (data.data == "extern") {
+                    nodes.nodes.push_back(parseExtern());
                 } else {
                     throw std::runtime_error("Unexpected identifier: " + at().toString(""));
                 }
@@ -79,8 +81,9 @@ namespace Parser {
             }
         }
     }
-    std::unique_ptr<FunctionNode> Parser::parseFunction () {
-        using Type = Lexer::Token::Type;
+    // More of a helper function.
+    FunctionSignatureInfo Parser::parseFunctionSignature () {
+         using Type = Lexer::Token::Type;
 
         expectIdentifier("func");         // func
         advance();
@@ -144,6 +147,17 @@ namespace Parser {
             }
         }
 
+        return FunctionSignatureInfo(
+            std::move(identity.get()),
+            std::move(parameters),
+            std::move(return_type)
+        );
+    }
+    std::unique_ptr<FunctionNode> Parser::parseFunction () {
+        using Type = Lexer::Token::Type;
+
+        FunctionSignatureInfo signature = parseFunctionSignature();
+
         // opening brace
         expect(Type::LBracket); // {
         advance();
@@ -163,13 +177,25 @@ namespace Parser {
         expect(Type::RBracket); // }
         advance();
 
-        //
         return std::make_unique<FunctionNode>(
-            std::move(identity.get()),
-            std::move(parameters),
-            std::move(return_type),
+            std::move(signature),
             std::move(body)
         );
+    }
+
+    std::unique_ptr<ExternNode> Parser::parseExtern () {
+        expectIdentifier("extern");
+        advance();
+
+        if (isIdentifier("func")) {
+            FunctionSignatureInfo signature = parseFunctionSignature();
+            expect(Lexer::Token::Type::Semicolon);
+            advance();
+
+            return std::make_unique<ExternFunctionNode>(std::move(signature));
+        } else {
+            throw std::runtime_error("Unknown extern declaration.");
+        }
     }
 
     /// Returns nullptr if it could not parse the type.

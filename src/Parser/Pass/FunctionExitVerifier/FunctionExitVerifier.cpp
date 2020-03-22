@@ -70,7 +70,7 @@ namespace ParserPass {
             if (auto func = llvm::dyn_cast<Parser::FunctionNode>(ptr)) {
                 std::cout << "Function\n";
                 bool is_void_return = false;
-                if (llvm::cast<Parser::PrimordialTypeNode>(func->return_type.get())->type == Parser::PrimordialType::Void) {
+                if (llvm::cast<Parser::PrimordialTypeNode>(func->signature.return_type.get())->type == Parser::PrimordialType::Void) {
                     // Void does not need to return a value;
                     is_void_return = true;
                 }
