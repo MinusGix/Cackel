@@ -32,6 +32,10 @@ namespace Parser {
     std::string getIdentityName (const std::unique_ptr<BaseASTNode>& ind);
 
     llvm::Type* convertPrimordialType (llvm::LLVMContext& context, PrimordialType type);
+    bool isPrimordialTypeSigned (PrimordialType type);
+
+    bool isPrimordialTypeAnInteger (PrimordialType type);
+    bool isPrimordialTypeANumber (PrimordialType type);
 
 
     /// ==== AST ====
@@ -131,6 +135,20 @@ namespace Parser {
     };
 
     // ==== Utility Nodes ====
+    struct IntegerCastNode : public BaseASTNode {
+        std::unique_ptr<BaseASTNode> expression;
+        PrimordialType to;
+        explicit IntegerCastNode (std::unique_ptr<BaseASTNode>&& t_expression, PrimordialType t_to);
+        std::string toString (const std::string&) const override;
+
+        static bool classof (const BaseASTNode* i) {
+            return i->getKind() == Kind::IntegerCast;
+        }
+
+        llvm::Value* codegen (Compiler::Compiler& compiler) override;
+    };
+
+
     struct LiteralIdentifierNode : public BaseASTNode {
         std::string name;
         explicit LiteralIdentifierNode (std::string&& t_name);
@@ -148,6 +166,7 @@ namespace Parser {
 
     struct LiteralNumberNode : public BaseASTNode {
         std::string value;
+        size_t size = 64;
         explicit LiteralNumberNode (std::string&& t_value);
         explicit LiteralNumberNode (const Lexer::Token& number_token);
         std::string toString (const std::string&) const override;

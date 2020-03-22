@@ -10,6 +10,7 @@
 
 #include "Parser/Parser.hpp"
 #include "Parser/Pass/FunctionExitVerifier/FunctionExitVerifier.hpp"
+#include "Parser/Pass/NumberConverter/NumberConverter.hpp"
 
 #include "Compiler/Compiler.hpp"
 
@@ -67,6 +68,7 @@ struct CompilerState {
 		}
 
 		ParserPass::FunctionExitVerifier exit_verifier(parsed_nodes);
+		ParserPass::NumberConverter number_converter(parsed_nodes);
 
 		compile(std::move(parsed_nodes), output_stream);
 	}

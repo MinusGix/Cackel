@@ -159,6 +159,49 @@ namespace Parser {
         throw std::runtime_error("Failed to convert primordial type: " + primordialTypeToString(type));
     }
 
+    bool isPrimordialTypeSigned (PrimordialType type) {
+        using Type = PrimordialType;
+        switch (type) {
+            case Type::Void:
+                std::cout << "isPrimordialTypeSigned called on void, this was proably not intended.\n";
+                return false;
+            case Type::Float32:
+            case Type::Float64:
+                std::cout << "isPrimordialTypeSigned called on float32/float64, this was possibly not intended\n";
+                return true;
+            case Type::Boolean:
+            case Type::UInt:
+            case Type::UInt128:
+            case Type::UInt64:
+            case Type::UInt32:
+            case Type::UInt16:
+            case Type::UInt8:
+                return false;
+            case Type::Int:
+            case Type::Int128:
+            case Type::Int64:
+            case Type::Int32:
+            case Type::Int16:
+            case Type::Int8:
+                return true;
+        }
+    }
+
+    bool isPrimordialTypeAnInteger (PrimordialType type) {
+        using Type = PrimordialType;
+        return type == Type::Int || type == Type::UInt ||
+            type == Type::Int128 || type == Type::UInt128 ||
+            type == Type::Int64 || type == Type::UInt64 ||
+            type == Type::Int32 || type == Type::UInt32 ||
+            type == Type::Int16 || type == Type::UInt16 ||
+            type == Type::Int8 || type == Type::UInt8;
+    }
+    bool isPrimordialTypeANumber (PrimordialType type) {
+        using Type = PrimordialType;
+        return type == Type::Float32 || type == Type::Float64 ||
+            isPrimordialTypeAnInteger(type);
+    }
+
     /// ==== AST ====
 
     std::string ParentASTNode::toString (const std::string orig_indent) const {
@@ -167,6 +210,19 @@ namespace Parser {
     }
 
     // ==== Utility Nodes ====
+    IntegerCastNode::IntegerCastNode (std::unique_ptr<BaseASTNode>&& t_expression, PrimordialType t_to) : BaseASTNode(Kind::IntegerCast), expression(std::move(t_expression)), to(t_to) {}
+    std::string IntegerCastNode::toString (const std::string& indent) const {
+        return "ICast[" + std::to_string(static_cast<int>(to)) + "][" + expression->toString(indent) + "]";
+    }
+    llvm::Value* IntegerCastNode::codegen (Compiler::Compiler& compiler) {
+        return compiler.builder.CreateIntCast(
+            expression->codegen(compiler),
+            convertPrimordialType(compiler.context, to),
+            isPrimordialTypeSigned(to),
+            "casted"
+        );
+    }
+
     LiteralIdentifierNode::LiteralIdentifierNode (std::string&& t_name) : BaseASTNode(Kind::IdentifierLiteral), name(t_name) {}
     LiteralIdentifierNode::LiteralIdentifierNode (const Lexer::Token& identifier_token) : BaseASTNode(Kind::IdentifierLiteral) {
         if (!identifier_token.is(Lexer::Token::Type::Identifier)) {
@@ -205,8 +261,6 @@ namespace Parser {
             return nullptr;
         }
         const uint64_t number_value = std::stoi(value);
-        size_t size = 32;
-        assert(size > 0);
         return llvm::ConstantInt::get(compiler.context, llvm::APInt(size, number_value, false));
     }
 
