@@ -294,7 +294,8 @@ namespace Parser {
         std::unique_ptr<TypeNode> type;
         // ExpressionNode*
         std::unique_ptr<BaseASTNode> value;
-        explicit VariableStatementNode (std::unique_ptr<BaseASTNode>&& t_identity, std::unique_ptr<TypeNode>&& t_type, std::unique_ptr<BaseASTNode>&& t_value);
+        bool is_mutable = false;
+        explicit VariableStatementNode (std::unique_ptr<BaseASTNode>&& t_identity, std::unique_ptr<TypeNode>&& t_type, std::unique_ptr<BaseASTNode>&& t_value, bool t_is_mutable);
         std::string toString (const std::string& indent) const override;
         static bool classof (const StatementASTNode* s) {
             return s->getKind() == Kind::Variable;
@@ -370,7 +371,8 @@ namespace Parser {
         std::unique_ptr<TypeNode> type;
         // TODO: identitynode-ify
         std::string name;
-        explicit FunctionParameterInfo (std::unique_ptr<TypeNode>&& t_type, std::string t_name);
+        bool is_mutable = false;
+        explicit FunctionParameterInfo (std::unique_ptr<TypeNode>&& t_type, std::string t_name, bool t_is_mutable);
         std::string toString (const std::string& indent) const;
     };
     struct FunctionNode : public DeclASTNode {

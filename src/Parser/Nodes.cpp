@@ -329,7 +329,8 @@ namespace Parser {
     }
 
 
-    VariableStatementNode::VariableStatementNode (std::unique_ptr<BaseASTNode>&& t_identity, std::unique_ptr<TypeNode>&& t_type, std::unique_ptr<BaseASTNode>&& t_value) : StatementASTNode(Kind::Variable), identity(std::move(t_identity)), type(std::move(t_type)), value(std::move(t_value)) {}
+    VariableStatementNode::VariableStatementNode (std::unique_ptr<BaseASTNode>&& t_identity, std::unique_ptr<TypeNode>&& t_type, std::unique_ptr<BaseASTNode>&& t_value, bool t_is_mutable) :
+        StatementASTNode(Kind::Variable), identity(std::move(t_identity)), type(std::move(t_type)), value(std::move(t_value)), is_mutable(t_is_mutable) {}
     std::string VariableStatementNode::toString (const std::string& indent) const {
         return "VS[" + identity->toString(indent) + " = " + value->toString(indent) + "]";
     }
@@ -521,7 +522,7 @@ namespace Parser {
     // ==== Declaration nodes ====
 
     // This could potentially be turned into a node of it's own status for now it's purely for functions
-    FunctionParameterInfo::FunctionParameterInfo (std::unique_ptr<TypeNode>&& t_type, std::string t_name) : type(std::move(t_type)), name(t_name) {}
+    FunctionParameterInfo::FunctionParameterInfo (std::unique_ptr<TypeNode>&& t_type, std::string t_name, bool t_is_mutable) : type(std::move(t_type)), name(t_name), is_mutable(t_is_mutable) {}
     std::string FunctionParameterInfo::toString (const std::string& indent) const {
         return "FParam[" + type->toString(indent) + ", " + name + "]";
     }

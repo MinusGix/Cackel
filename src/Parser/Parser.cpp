@@ -99,6 +99,12 @@ namespace Parser {
 
         std::vector<std::unique_ptr<FunctionParameterInfo>> parameters;
         while (!is(Type::RParen)) {
+            bool is_mutable = false;
+            if (isIdentifier("mut")) {
+                advance();
+                is_mutable = true;
+            }
+
             const Lexer::Token& name_token = expect(Type::Identifier); // name
             const std::string& name = name_token.getData<Lexer::Token::IdentifierData>().data;
             advance();
@@ -109,7 +115,7 @@ namespace Parser {
                 throw std::runtime_error("Got parameter name (" + name + ") and colon, but type information was invalid.");
             }
 
-            parameters.push_back(std::make_unique<FunctionParameterInfo>(std::move(type), name));
+            parameters.push_back(std::make_unique<FunctionParameterInfo>(std::move(type), name, is_mutable));
 
             if (is(Type::Comma)) {
                 advance();
@@ -213,10 +219,19 @@ namespace Parser {
         advance();
         return std::make_unique<ExpressionStatementNode>(std::move(expression));
     }
+    /*
+        'let ' mut? identifier '=' expression ';'
+    */
     std::unique_ptr<StatementASTNode> Parser::parseStatement_variableDeclaration () {
         using Type = Lexer::Token::Type;
         expectIdentifier("let");
         advance();
+
+        bool is_mutable = false;
+        if (isIdentifier("mut")) {
+            is_mutable = true;
+            advance();
+        }
 
         // variable name
         /// IdentifyingNameNode*
@@ -252,7 +267,8 @@ namespace Parser {
         return std::make_unique<VariableStatementNode>(
             std::move(identity.get()),
             std::move(type),
-            std::move(expression)
+            std::move(expression),
+            is_mutable
         );
     }
     // return returnstatementnode
