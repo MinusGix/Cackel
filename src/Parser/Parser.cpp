@@ -222,7 +222,7 @@ namespace Parser {
     /*
         'let ' mut? identifier '=' expression ';'
     */
-    std::unique_ptr<StatementASTNode> Parser::parseStatement_variableDeclaration () {
+    std::unique_ptr<VariableStatementNode> Parser::parseStatement_variableDeclaration () {
         using Type = Lexer::Token::Type;
         expectIdentifier("let");
         advance();
@@ -271,8 +271,8 @@ namespace Parser {
             is_mutable
         );
     }
-    // return returnstatementnode
-    std::unique_ptr<StatementASTNode> Parser::parseStatement_return () {
+
+    std::unique_ptr<ReturnStatementNode> Parser::parseStatement_return () {
         using Type = Lexer::Token::Type;
         expectIdentifier("return");
         advance();
@@ -333,8 +333,7 @@ namespace Parser {
 
         return std::make_unique<ConditionalPart>(std::move(condition), std::move(body));
     }
-    // TODO: return ifstatementnode instead..
-    std::unique_ptr<StatementASTNode> Parser::parseStatement_if () {
+    std::unique_ptr<IfStatementNode> Parser::parseStatement_if () {
         expectIdentifier("if");
         advance();
 
@@ -353,7 +352,7 @@ namespace Parser {
                 break;
             }
         }
-        return std::move(if_statement);
+        return if_statement;
     }
 
     Util::Result<std::unique_ptr<FunctionCallNode>> Parser::tryParseFunctionCall () {

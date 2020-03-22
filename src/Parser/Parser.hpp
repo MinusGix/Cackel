@@ -31,9 +31,9 @@ namespace Parser {
         std::unique_ptr<TypeNode> parseType ();
         std::unique_ptr<StatementASTNode> parseStatement ();
         std::unique_ptr<StatementASTNode> parseStatement_expression ();
-        std::unique_ptr<StatementASTNode> parseStatement_variableDeclaration ();
-        std::unique_ptr<StatementASTNode> parseStatement_return ();
-        std::unique_ptr<StatementASTNode> parseStatement_if ();
+        std::unique_ptr<VariableStatementNode> parseStatement_variableDeclaration ();
+        std::unique_ptr<ReturnStatementNode> parseStatement_return ();
+        std::unique_ptr<IfStatementNode> parseStatement_if ();
         Util::Result<std::unique_ptr<FunctionCallNode>> tryParseFunctionCall ();
 
         std::unique_ptr<BaseASTNode> parseExpression ();
