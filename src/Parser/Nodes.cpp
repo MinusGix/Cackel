@@ -299,6 +299,18 @@ namespace Parser {
         return "Func[" + identity->toString(indent) + "(" + "... arguments TODO" + ")]";
     }
 
+    VariableAssignment::VariableAssignment (std::unique_ptr<BaseASTNode>&& t_identity, std::unique_ptr<BaseASTNode>&& t_value) : BaseASTNode(Kind::VariableAssignment), identity(std::move(t_identity)), value(std::move(t_value)) {}
+    std::string VariableAssignment::toString (const std::string& indent) const {
+        return "=(" + identity->toString(indent) + ", " + value->toString(indent) + ")";
+    }
+    llvm::Value* VariableAssignment:: codegen (Compiler::Compiler& compiler) {
+        std::string name = getIdentityName(identity);
+        auto variable = compiler.named_values.at(name);
+        llvm::Value* generated_value = value->codegen(compiler);
+        compiler.builder.CreateStore(generated_value, variable);
+        return generated_value; // I believe returning the value it's set to makes the most sense.
+    }
+
     llvm::Value* FunctionCallNode::codegen (Compiler::Compiler& compiler) {
         if (compiler.stage != Compiler::Stage::Normal) {
             return nullptr;

@@ -415,16 +415,18 @@ namespace Parser {
     /// Note: Since the values are precedence levels, this means operators are equivalent...
     /// So you should not use this enum to identify the operator
     enum class OperatorPrecedence : int {
-        Addition = 1, // x + y
+        Assignment = 1, // x = y
+
+        Addition = 6, // x + y
         Subtraction = Addition, // x - y
 
-        Multiplication = 2, // x * y
+        Multiplication = 7, // x * y
         Division = Multiplication, // x / y
         Modulo = Multiplication, // x % y
 
-        Exponentiation = 3, // **
+        Exponentiation = 8, // **
 
-        UnaryPlus = 4, // +x
+        UnaryPlus = 9, // +x
         UnaryMinus = UnaryPlus, // -x
         PlusPlus = UnaryPlus, // x++ ++x
         MinusMinus = UnaryPlus, // x-- --x
@@ -439,7 +441,7 @@ namespace Parser {
 
     static bool isBinaryOperator (const Lexer::Token& token) {
         using Type = Lexer::Token::Type;
-        return token.isOne(Type::Plus, Type::Minus, Type::Star, Type::Forwardslash, Type::Percent);
+        return token.isOne(Type::Plus, Type::Minus, Type::Star, Type::Forwardslash, Type::Percent, Type::Equals);
     }
     static OperatorPrecedence getBinaryOperatorPrecedence (Lexer::Token::Type type) {
         using Type = Lexer::Token::Type;
@@ -450,6 +452,7 @@ namespace Parser {
             case Type::Forwardslash: return OperatorPrecedence::Division;
             case Type::Percent: return OperatorPrecedence::Modulo;
             case Type::StarStar: return OperatorPrecedence::Exponentiation;
+            case Type::Equals: return OperatorPrecedence::Assignment;
             default:
                 throw std::runtime_error("Unknown binary operator from token type: " + Lexer::Token::typeToString(type));
         }
@@ -460,6 +463,7 @@ namespace Parser {
         switch (type) {
             // Something like exponent might be right associative
             case Type::StarStar:
+            case Type::Equals:
                 return Associativity::Right;
             default:
                 return Associativity::Left;
@@ -563,6 +567,8 @@ namespace Parser {
             return std::make_unique<MultiplyExpressionNode>(std::move(left), std::move(right));
         } else if (type == Type::StarStar) {
             throw std::runtime_error("Impl exponents");
+        } else if (type == Type::Equals) {
+            return std::make_unique<VariableAssignment>(std::move(left), std::move(right));
         } else {
             throw std::runtime_error("[Internal] Failed in creating node for binary operator: " + Lexer::Token::typeToString(type) + " for expressions: (" +
                 left->toString("") + ", " + right->toString("") + ")"

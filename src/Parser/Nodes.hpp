@@ -254,6 +254,20 @@ namespace Parser {
         llvm::Value* codegen (Compiler::Compiler& compiler) override;
     };
 
+    struct VariableAssignment : public BaseASTNode {
+        /// IdentifyingNameNode*
+        std::unique_ptr<BaseASTNode> identity;
+        std::unique_ptr<BaseASTNode> value;
+
+        explicit VariableAssignment (std::unique_ptr<BaseASTNode>&& t_identity, std::unique_ptr<BaseASTNode>&& t_value);
+        std::string toString (const std::string& indent) const override;
+        static bool classof (const BaseASTNode* i) {
+            return i->getKind() == Kind::VariableAssignment;
+        }
+
+        llvm::Value* codegen (Compiler::Compiler& compiler) override;
+    };
+
     // ==== Statement Nodes ====
     struct StatementASTNode {
         enum class Kind {
