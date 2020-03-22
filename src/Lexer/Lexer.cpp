@@ -42,6 +42,7 @@ namespace Lexer {
             case Type::At: return "At";
             case Type::Tilde: return "Tilde";
             case Type::Grave: return "Grave";
+            default: throw std::runtime_error("Unknown token: " + std::to_string(static_cast<int>(type)));
         }
     }
 
@@ -377,6 +378,6 @@ namespace Lexer {
         } else {
             type = Token::Type::DecInteger;
         }
-        return makeToken( Token::Type::DecInteger, Token::NumberData(file_contents.substr(start, amount)));
+        return makeToken(type, Token::NumberData(file_contents.substr(start, amount)));
     }
 }

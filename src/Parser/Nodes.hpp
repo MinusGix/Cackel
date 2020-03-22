@@ -239,7 +239,6 @@ namespace Parser {
     };
 
     struct FunctionCallNode : public BaseASTNode {
-        // TODO: replace this with a unique_ptr
         /// IdentifyingNameNode* ew
         std::unique_ptr<BaseASTNode> identity;
         ///                        ExpressionNode*
@@ -302,7 +301,6 @@ namespace Parser {
     };
 
     struct VariableStatementNode : public StatementASTNode {
-        // TODO: make this use unique_ptr
         // IdentifyingNameNode* ew
         std::unique_ptr<BaseASTNode> identity;
         std::unique_ptr<TypeNode> type;
@@ -381,7 +379,6 @@ namespace Parser {
 
     // This could potentially be turned into a node of it's own status for now it's purely for functions
     struct FunctionParameterInfo {
-        // TODO: unique_ptriffiy
         std::unique_ptr<TypeNode> type;
         // TODO: identitynode-ify
         std::string name;
